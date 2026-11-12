@@ -13,6 +13,7 @@ function validateArticle(body) {
   const status = body.status;
   const menuSection = typeof body.menu_section === "string" ? body.menu_section.trim() : "";
   const showOnHome = body.show_on_home === undefined ? true : body.show_on_home;
+  const featuredOnHome = body.featured_on_home === undefined ? false : body.featured_on_home;
   const coverImageUrl = typeof body.cover_image_url === "string" ? body.cover_image_url.trim() : "";
 
   if (!title || !category || !slug) {
@@ -26,6 +27,9 @@ function validateArticle(body) {
   }
   if (typeof showOnHome !== "boolean") {
     return { error: "Le choix d’affichage sur l’accueil n’est pas valide." };
+  }
+  if (typeof featuredOnHome !== "boolean") {
+    return { error: "Le choix de l’article à la une n’est pas valide." };
   }
   if (menuSection && !mainMenuSections.some((section) => section.slug === menuSection)) {
     return { error: "La rubrique choisie dans le menu principal n’est pas valide." };
@@ -42,7 +46,8 @@ function validateArticle(body) {
       content,
       excerpt: excerpt || null,
       location: location || null,
-      show_on_home: showOnHome,
+      show_on_home: showOnHome || featuredOnHome,
+      featured_on_home: featuredOnHome,
       menu_section: menuSection || null,
       status,
       author_name: typeof body.author_name === "string" ? body.author_name.trim() || null : null,
@@ -64,7 +69,7 @@ export async function GET(request) {
   return withAdmin(request, async ({ db }) => {
     const { data, error } = await db
       .from("articles")
-      .select("id, title, slug, excerpt, content, category, location, author_name, cover_image_url, tags, status, published_at, created_at, updated_at, show_on_home, menu_section")
+      .select("id, title, slug, excerpt, content, category, location, author_name, cover_image_url, tags, status, published_at, created_at, updated_at, show_on_home, featured_on_home, menu_section")
       .order("updated_at", { ascending: false });
 
     if (error) {
@@ -81,13 +86,23 @@ export async function POST(request) {
     const validated = validateArticle(body.data);
     if (validated.error) return Response.json({ error: validated.error }, { status: 400 });
 
+    const article = {
+      ...validated.article,
+      featured_on_home: validated.article.status === "published" ? false : validated.article.featured_on_home,
+    };
     const { data, error } = await db
       .from("articles")
-      .insert({ ...validated.article, author_name: validated.article.author_name ?? user.email })
+      .insert({ ...article, author_name: article.author_name ?? user.email })
       .select("id, title")
       .single();
     if (error) {
       return Response.json({ error: `Impossible de créer l’article : ${error.message}` }, { status: 400 });
+    }
+    if (validated.article.featured_on_home && validated.article.status === "published") {
+      const { error: featuredError } = await db.rpc("set_home_featured_article", { target_article_id: data.id });
+      if (featuredError) {
+        return Response.json({ error: `L’article a été créé, mais sa mise à la une a échoué : ${featuredError.message}` }, { status: 500 });
+      }
     }
     return Response.json({ article: data }, { status: 201 });
   });
@@ -104,9 +119,23 @@ export async function PATCH(request) {
     const validated = validateArticle(body.data);
     if (validated.error) return Response.json({ error: validated.error }, { status: 400 });
 
+    const article = {
+      ...validated.article,
+      featured_on_home: validated.article.status === "published" ? false : validated.article.featured_on_home,
+    };
+    const { data: existing, error: existingError } = await db
+      .from("articles")
+      .select("id")
+      .eq("id", body.data.id)
+      .maybeSingle();
+    if (existingError) {
+      return Response.json({ error: `Impossible de vérifier l’article : ${existingError.message}` }, { status: 500 });
+    }
+    if (!existing) return Response.json({ error: "Cet article n’existe plus." }, { status: 404 });
+
     const { data, error } = await db
       .from("articles")
-      .update(validated.article)
+      .update(article)
       .eq("id", body.data.id)
       .select("id, title")
       .maybeSingle();
@@ -114,6 +143,12 @@ export async function PATCH(request) {
       return Response.json({ error: `Impossible de modifier l’article : ${error.message}` }, { status: 400 });
     }
     if (!data) return Response.json({ error: "Cet article n’existe plus." }, { status: 404 });
+    if (validated.article.featured_on_home && validated.article.status === "published") {
+      const { error: featuredError } = await db.rpc("set_home_featured_article", { target_article_id: data.id });
+      if (featuredError) {
+        return Response.json({ error: `L’article a été modifié, mais sa mise à la une a échoué : ${featuredError.message}` }, { status: 500 });
+      }
+    }
     return Response.json({ article: data });
   });
 }

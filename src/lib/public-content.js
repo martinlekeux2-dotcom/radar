@@ -27,8 +27,9 @@ export async function getPublishedArticles({ homeOnly = false, menuSection = nul
 
   let query = client
     .from("articles")
-    .select("id, title, slug, excerpt, content, category, location, author_name, cover_image_url, tags, status, published_at, show_on_home, menu_section")
+    .select("id, title, slug, excerpt, content, category, location, author_name, cover_image_url, tags, status, published_at, show_on_home, featured_on_home, menu_section")
     .eq("status", "published")
+    .order("featured_on_home", { ascending: false })
     .order("published_at", { ascending: false });
 
   if (homeOnly) query = query.eq("show_on_home", true);
@@ -55,12 +56,15 @@ export async function getPublishedEvents() {
 
   const query = client
     .from("events")
-    .select("id, title, slug, description, category, venue, city, starts_at, ends_at, ticket_url, image_url")
+    .select("id, title, slug, description, category, venue, city, starts_at, ends_at, ticket_url, image_url, featured_position")
     .eq("status", "published")
     .gte("starts_at", new Date().toISOString())
+    .order("featured_position", { ascending: true, nullsFirst: false })
     .order("starts_at", { ascending: true })
     .limit(3);
-  return readRows(query, "les événements");
+  const events = await readRows(query, "les événements");
+  const featuredEvents = events.filter((event) => event.featured_position !== null);
+  return featuredEvents.length ? featuredEvents : events;
 }
 
 export async function getPublishedQuickInfos() {
@@ -89,4 +93,18 @@ export async function getPublishedArticle(slug) {
 
   if (error) throw new Error(`Impossible de charger l’article : ${error.message}`);
   return data;
+}
+
+export async function getPublishedReportages({ homeOnly = false } = {}) {
+  const client = getPublicClient();
+  if (!client) return null;
+
+  let query = client
+    .from("reportages")
+    .select("id, title, slug, category, author_name, image_url, image_description, content, position, show_on_home, published_at")
+    .eq("status", "published")
+    .order("position", { ascending: true })
+    .order("published_at", { ascending: false });
+  if (homeOnly) query = query.eq("show_on_home", true);
+  return readRows(query, "les reportages");
 }

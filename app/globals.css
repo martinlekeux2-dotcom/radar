@@ -2393,7 +2393,17 @@ a {
 }
 
 .videos-marquee {
-  animation: videos-marquee 52s linear infinite;
+  animation: none;
+}
+
+.video-gallery-viewport {
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+
+.video-gallery-viewport .video-card {
+  scroll-snap-align: start;
 }
 
 .marquee-viewport:hover .marquee-track,

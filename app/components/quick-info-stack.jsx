@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Lightbulb, Leaf, MapPin, Zap } from "lucide-react";
 
 const icons = {
@@ -16,12 +16,17 @@ export default function QuickInfoStack({ items }) {
   const remainingItems = items.slice(currentIndex);
   const ActiveIcon = icons[remainingItems[0]?.icon] ?? Lightbulb;
 
+  useEffect(() => {
+    setCurrentIndex(0);
+    setIsDismissing(false);
+  }, [items]);
+
   function dismissCard() {
     if (!isDismissing) setIsDismissing(true);
   }
 
   function advanceStack(event) {
-    if (event.propertyName !== "transform" || !isDismissing) return;
+    if (event.target !== event.currentTarget || event.propertyName !== "transform" || !isDismissing) return;
     setCurrentIndex((index) => index + 1);
     setIsDismissing(false);
   }

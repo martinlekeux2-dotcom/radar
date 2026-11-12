@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   BarChart3,
   Bold,
+  BookOpen,
   CalendarDays,
   Check,
   ChevronRight,
@@ -41,6 +42,7 @@ import { Upload } from "tus-js-client";
 const navigation = [
   { id: "overview", label: "Vue d’ensemble", Icon: LayoutDashboard },
   { id: "articles", label: "Articles", Icon: FileText },
+  { id: "reportages", label: "Reportages", Icon: BookOpen },
   { id: "videos", label: "Vidéos", Icon: Clapperboard },
   { id: "events", label: "Événements", Icon: CalendarDays },
   { id: "quickInfos", label: "Infos rapides", Icon: Lightbulb },
@@ -73,6 +75,7 @@ const emptyArticle = {
   location: "",
   cover_image_url: "",
   show_on_home: true,
+  featured_on_home: false,
   menu_section: "",
   status: "draft",
 };
@@ -121,37 +124,45 @@ async function uploadMedia(file, kind, onProgress) {
     body: { kind, mimeType: file.type, size: file.size },
   });
 
-  const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!projectUrl) throw new Error("Supabase n’est pas complètement configuré.");
-  const supabaseUrl = new URL(projectUrl);
-  if (supabaseUrl.hostname.endsWith(".supabase.co") && !supabaseUrl.hostname.endsWith(".storage.supabase.co")) {
-    supabaseUrl.hostname = supabaseUrl.hostname.replace(/\.supabase\.co$/, ".storage.supabase.co");
-  }
-  const endpoint = `${supabaseUrl.origin}/storage/v1/upload/resumable`;
-
-  await new Promise((resolve, reject) => {
-    const upload = new Upload(file, {
-      endpoint,
-      headers: { "x-signature": signedUpload.token },
-      metadata: {
-        bucketName: signedUpload.bucket,
-        objectName: signedUpload.path,
-        contentType: file.type,
-      },
-      chunkSize: 6 * 1024 * 1024,
-      retryDelays: [0, 3000, 5000, 10000, 20000],
-      uploadDataDuringCreation: true,
-      removeFingerprintOnSuccess: true,
-      onProgress(bytesUploaded, bytesTotal) {
-        onProgress(Math.round((bytesUploaded / bytesTotal) * 100));
-      },
-      onError: reject,
-      onSuccess: resolve,
-    });
-    upload.start();
-  });
-
   const supabase = getSupabaseClient();
+  if (kind === "image") {
+    const { error } = await supabase.storage
+      .from(signedUpload.bucket)
+      .uploadToSignedUrl(signedUpload.path, signedUpload.token, file, { contentType: file.type });
+    if (error) throw new Error(`Impossible d’envoyer l’image : ${error.message}`);
+    onProgress(100);
+  } else {
+    const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!projectUrl) throw new Error("Supabase n’est pas complètement configuré.");
+    const supabaseUrl = new URL(projectUrl);
+    if (supabaseUrl.hostname.endsWith(".supabase.co") && !supabaseUrl.hostname.endsWith(".storage.supabase.co")) {
+      supabaseUrl.hostname = supabaseUrl.hostname.replace(/\.supabase\.co$/, ".storage.supabase.co");
+    }
+    const endpoint = `${supabaseUrl.origin}/storage/v1/upload/resumable`;
+
+    await new Promise((resolve, reject) => {
+      const upload = new Upload(file, {
+        endpoint,
+        headers: { "x-signature": signedUpload.token },
+        metadata: {
+          bucketName: signedUpload.bucket,
+          objectName: signedUpload.path,
+          contentType: file.type,
+        },
+        chunkSize: 6 * 1024 * 1024,
+        retryDelays: [0, 3000, 5000, 10000, 20000],
+        uploadDataDuringCreation: true,
+        removeFingerprintOnSuccess: true,
+        onProgress(bytesUploaded, bytesTotal) {
+          onProgress(Math.round((bytesUploaded / bytesTotal) * 100));
+        },
+        onError: reject,
+        onSuccess: resolve,
+      });
+      upload.start();
+    });
+  }
+
   return supabase.storage.from(signedUpload.bucket).getPublicUrl(signedUpload.path).data.publicUrl;
 }
 
@@ -300,8 +311,9 @@ function ArticleTable({ articles, compact = false, onEdit, onDelete }) {
               <td>{article.category}{article.location && <span className="admin-table-subtitle">{article.location}</span>}</td>
               <td>
                 {article.show_on_home && <span className="admin-table-subtitle">Accueil</span>}
+                {article.featured_on_home && <span className="admin-table-subtitle">À la une</span>}
                 {article.menu_section && <span className="admin-table-subtitle">{mainMenuSections.find((section) => section.slug === article.menu_section)?.label ?? article.menu_section}</span>}
-                {!article.show_on_home && !article.menu_section && "—"}
+                {!article.show_on_home && !article.featured_on_home && !article.menu_section && "—"}
               </td>
               <td><StatusBadge status={article.status}>{articleStatusLabels[article.status] ?? article.status}</StatusBadge></td>
               <td>{formatDate(article.updated_at)}</td>
@@ -439,8 +451,20 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
             </select>
           </label>
           <label className="admin-toggle-field">
-            <input checked={form.show_on_home ?? true} name="show_on_home" onChange={(event) => setForm((current) => ({ ...current, show_on_home: event.target.checked }))} type="checkbox" />
-            Ajouter aussi à la une sur l’accueil
+            <input checked={form.show_on_home ?? true} name="show_on_home" onChange={(event) => setForm((current) => ({
+              ...current,
+              show_on_home: event.target.checked,
+              ...(event.target.checked ? {} : { featured_on_home: false }),
+            }))} type="checkbox" />
+            Afficher dans les dernières actualités de l’accueil
+          </label>
+          <label className="admin-toggle-field">
+            <input checked={form.featured_on_home ?? false} name="featured_on_home" onChange={(event) => setForm((current) => ({
+              ...current,
+              featured_on_home: event.target.checked,
+              ...(event.target.checked ? { show_on_home: true } : {}),
+            }))} type="checkbox" />
+            Fixer dans le grand cadre « À la une »
           </label>
           <div className="admin-form-wide admin-excerpt-field">
             <label htmlFor="article-excerpt">Chapeau</label>
@@ -507,10 +531,26 @@ function emptyContentItem(kind) {
       ends_at: "",
       ticket_url: "",
       image_url: "",
+      featured_position: "",
       status: "draft",
     };
   }
-  return { category: "", icon: "lightbulb", title: "", copy: "", position: 0, status: "draft" };
+  return { category: "", icon: "lightbulb", title: "", copy: "", position: 0, status: "published" };
+}
+
+function emptyReportage() {
+  return {
+    title: "",
+    slug: "",
+    category: "",
+    author_name: "",
+    image_url: "",
+    image_description: "",
+    content: "",
+    position: 0,
+    show_on_home: true,
+    status: "draft",
+  };
 }
 
 function localDateTime(value) {
@@ -618,6 +658,14 @@ function ContentEditor({ kind, item, onClose, onSave, busy, error }) {
               <label className="admin-form-wide">Image (URL)<input name="image_url" onChange={updateField} type="url" value={form.image_url ?? ""} /></label>
               <div className="admin-form-wide"><MediaUploadControl kind="image" onUploaded={(url) => setForm((current) => ({ ...current, image_url: url }))} onUploadingChange={onUploadingChange} /></div>
               <label className="admin-form-wide">Description<textarea name="description" onChange={updateField} rows={2} value={form.description ?? ""} /></label>
+              <label>Position dans les bulles à la une
+                <select name="featured_position" onChange={updateField} value={form.featured_position ?? ""}>
+                  <option value="">Aucune (sélection automatique)</option>
+                  <option value="1">1 — Première bulle</option>
+                  <option value="2">2 — Deuxième bulle</option>
+                  <option value="3">3 — Troisième bulle</option>
+                </select>
+              </label>
               <label>Statut
                 <select name="status" onChange={updateField} value={form.status}>
                   <option value="draft">Brouillon</option><option value="published">Publié</option><option value="cancelled">Annulé</option>
@@ -633,6 +681,94 @@ function ContentEditor({ kind, item, onClose, onSave, busy, error }) {
         </div>
       </form>
     </div>
+  );
+}
+
+function ReportageEditor({ reportage, onClose, onSave, busy, error }) {
+  const [form, setForm] = useState({ ...emptyReportage(), ...reportage });
+  const [slugTouched, setSlugTouched] = useState(Boolean(reportage.id));
+  const [uploadCount, setUploadCount] = useState(0);
+  const onUploadingChange = (isUploading) => setUploadCount((count) => count + (isUploading ? 1 : -1));
+
+  function updateField(event) {
+    const { name, value } = event.target;
+    setForm((current) => {
+      const updated = { ...current, [name]: value };
+      if (name === "title" && !slugTouched) updated.slug = slugifyContent(value);
+      return updated;
+    });
+  }
+
+  return (
+    <div className="admin-modal-backdrop" role="presentation">
+      <form className="admin-editor-modal" onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
+        <div className="admin-panel-heading">
+          <div><p className="admin-eyebrow">{reportage.id ? "Modification" : "Création"}</p><h2>{reportage.id ? "Modifier le reportage" : "Nouveau reportage"}</h2></div>
+          <button aria-label="Fermer" className="admin-icon-button" onClick={onClose} type="button"><X size={19} /></button>
+        </div>
+        <div className="admin-form-grid">
+          <label className="admin-form-wide">Titre<input name="title" onChange={updateField} required value={form.title} /></label>
+          <label>Slug<input name="slug" onChange={(event) => { setSlugTouched(true); updateField(event); }} required value={form.slug} /></label>
+          <label>Catégorie<input name="category" onChange={updateField} required value={form.category} /></label>
+          <label>Auteur<input name="author_name" onChange={updateField} required value={form.author_name} /></label>
+          <label>Ordre des bulles<input min={0} name="position" onChange={updateField} required type="number" value={form.position} /></label>
+          <label className="admin-form-wide">Image (URL)<input name="image_url" onChange={updateField} type="url" value={form.image_url ?? ""} /></label>
+          <div className="admin-form-wide"><MediaUploadControl kind="image" onUploaded={(url) => setForm((current) => ({ ...current, image_url: url }))} onUploadingChange={onUploadingChange} /></div>
+          <label className="admin-form-wide">Description de l’image<input name="image_description" onChange={updateField} value={form.image_description ?? ""} /></label>
+          <label className="admin-form-wide">Texte du reportage<textarea className="admin-content-field" name="content" onChange={updateField} required rows={10} value={form.content} /></label>
+          <label>Statut
+            <select name="status" onChange={updateField} value={form.status}>
+              <option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option>
+            </select>
+          </label>
+          <label className="admin-toggle-field">
+            <input checked={form.show_on_home} name="show_on_home" onChange={(event) => setForm((current) => ({ ...current, show_on_home: event.target.checked }))} type="checkbox" />
+            Afficher dans les bulles de la page d’accueil
+          </label>
+        </div>
+        {error && <p className="admin-alert" role="alert">{error}</p>}
+        <div className="admin-modal-actions">
+          <button className="admin-secondary-button" onClick={onClose} type="button">Annuler</button>
+          <button className="admin-primary-button" disabled={busy || uploadCount > 0} type="submit"><Save size={16} />{busy ? "Enregistrement…" : "Enregistrer"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function ReportagesView({ items, busy, error, onSave, onDelete }) {
+  const [editor, setEditor] = useState(null);
+  return (
+    <>
+      <section className="admin-panel">
+        <div className="admin-panel-heading">
+          <div><p className="admin-eyebrow">Publication</p><h2>Gérer les reportages</h2></div>
+          <button className="admin-primary-button" onClick={() => setEditor(emptyReportage())} type="button"><Plus size={16} /> Ajouter</button>
+        </div>
+        <p className="admin-muted">Les reportages publiés peuvent apparaître dans les bulles de la page d’accueil. Les brouillons restent masqués.</p>
+        {error && <p className="admin-alert" role="alert">{error}</p>}
+        {!items.length ? <p className="admin-empty">Aucun reportage enregistré.</p> : (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead><tr><th>Titre</th><th>Catégorie</th><th>Accueil</th><th>Statut</th><th>Actions</th></tr></thead>
+              <tbody>{items.map((item) => (
+                <tr key={item.id}>
+                  <td><strong>{item.title}</strong><span className="admin-table-subtitle">/{item.slug}</span></td>
+                  <td>{item.category}</td>
+                  <td>{item.show_on_home ? `Bulle ${item.position + 1}` : "Masqué"}</td>
+                  <td><StatusBadge status={item.status}>{articleStatusLabels[item.status] ?? item.status}</StatusBadge></td>
+                  <td><div className="admin-row-actions">
+                    <button aria-label={`Modifier ${item.title}`} onClick={() => setEditor({ ...item })} type="button"><FileText size={16} /></button>
+                    <button aria-label={`Supprimer ${item.title}`} className="admin-danger-icon" onClick={() => onDelete(item)} type="button"><Trash2 size={16} /></button>
+                  </div></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+      {editor && <ReportageEditor reportage={editor} busy={busy} error={error} onClose={() => setEditor(null)} onSave={async (values) => { if (await onSave(values)) setEditor(null); }} />}
+    </>
   );
 }
 
@@ -666,7 +802,7 @@ function ContentManagerView({ kind, items, onSave, onDelete, busy, error }) {
                 <td>{isVideo
                   ? item.featured_position ? `Mise en avant ${item.featured_position}/3` : item.category || "Non classée"
                   : isEvent
-                    ? `${formatDate(item.starts_at)} · ${[item.venue, item.city].filter(Boolean).join(", ")}`
+                    ? `${item.featured_position ? `Bulle ${item.featured_position} · ` : ""}${formatDate(item.starts_at)} · ${[item.venue, item.city].filter(Boolean).join(", ")}`
                     : `${item.category} · position ${item.position}`}</td>
                 <td><StatusBadge status={item.status}>{item.status === "published" ? "Publié" : item.status === "cancelled" ? "Annulé" : articleStatusLabels[item.status] ?? item.status}</StatusBadge></td>
                 <td><div className="admin-row-actions">
@@ -1064,6 +1200,7 @@ function AdminWorkspace({ session, supabase }) {
         } else if (section === "videos") value = result.videos;
         else if (section === "events") value = result.events;
         else if (section === "quickInfos") value = result.quickInfos;
+        else if (section === "reportages") value = result.reportages;
         else if (section === "rss") value = result.items;
         setLoadedData({ key: dataKey, value });
       })
@@ -1105,6 +1242,22 @@ function AdminWorkspace({ session, supabase }) {
     return runAction(
       () => adminRequest(path, { method: values.id ? "PATCH" : "POST", body: values }),
       `${kind === "video" ? "Vidéo" : kind === "event" ? "Événement" : "Info rapide"} enregistré${kind === "event" ? "" : "e"}.`,
+    );
+  }
+
+  async function saveReportage(reportage) {
+    const isEditing = Boolean(reportage.id);
+    return runAction(
+      () => adminRequest("reportages", { method: isEditing ? "PATCH" : "POST", body: reportage }),
+      isEditing ? "Reportage modifié." : "Reportage créé.",
+    );
+  }
+
+  async function deleteReportage(reportage) {
+    if (!window.confirm(`Supprimer définitivement le reportage « ${reportage.title} » ?`)) return;
+    await runAction(
+      () => adminRequest("reportages", { method: "DELETE", body: { id: reportage.id } }),
+      "Reportage supprimé.",
     );
   }
 
@@ -1228,6 +1381,15 @@ function AdminWorkspace({ session, supabase }) {
                   <div className="admin-panel-heading"><div><p className="admin-eyebrow">Publication</p><h2>Articles</h2></div><button className="admin-primary-button" onClick={() => setEditor({ ...emptyArticle })} type="button"><Plus size={17} /> Nouvel article</button></div>
                   <ArticleTable articles={data ?? []} onEdit={(article) => setEditor({ ...article })} onDelete={deleteArticle} />
                 </section>
+              )}
+              {section === "reportages" && (
+                <ReportagesView
+                  busy={busy}
+                  error={error}
+                  items={data ?? []}
+                  onDelete={deleteReportage}
+                  onSave={saveReportage}
+                />
               )}
               {section === "videos" && <ContentManagerView busy={busy} error={error} items={data ?? []} kind="video" onDelete={deleteContent} onSave={saveContent} />}
               {section === "events" && <ContentManagerView busy={busy} error={error} items={data ?? []} kind="event" onDelete={deleteContent} onSave={saveContent} />}

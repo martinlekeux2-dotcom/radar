@@ -10,11 +10,12 @@ import {
 import QuickInfoStack from "./components/quick-info-stack";
 import WeatherCard from "./components/weather-card";
 import { articles } from "./lib/articles";
-import { reportages } from "./lib/reportages";
+import { reportages as fallbackReportages } from "./lib/reportages";
 import {
   getPublishedArticles,
   getPublishedEvents,
   getPublishedQuickInfos,
+  getPublishedReportages,
   getPublishedVideos,
 } from "../src/lib/public-content";
 
@@ -100,11 +101,12 @@ function SectionHeading({ kicker, title, href = "#en-direct", linkLabel = "Tout 
 export default async function Home({ searchParams }) {
   const { q = "" } = await searchParams;
   const query = typeof q === "string" ? q.trim() : "";
-  const [databaseArticles, databaseVideos, databaseEvents, databaseQuickInfos] = await Promise.all([
+  const [databaseArticles, databaseVideos, databaseEvents, databaseQuickInfos, databaseReportages] = await Promise.all([
     getPublishedArticles({ homeOnly: !query }),
     getPublishedVideos(),
     getPublishedEvents(),
     getPublishedQuickInfos(),
+    getPublishedReportages({ homeOnly: true }),
   ]);
   const articleSource = databaseArticles ?? articles;
   const matchingArticles = query
@@ -115,7 +117,9 @@ export default async function Home({ searchParams }) {
       )
     : articleSource;
   const filteredArticles = matchingArticles.slice(0, 4);
-  const featuredArticle = filteredArticles[0] ?? (databaseArticles === null ? articles[0] : null);
+  const featuredArticle = articleSource.find((article) => article.featured_on_home)
+    ?? filteredArticles[0]
+    ?? (databaseArticles === null ? articles[0] : null);
   const videos = databaseVideos === null
     ? fallbackVideos.map((video, index) => ({ ...video, featured_position: index < 3 ? index + 1 : null }))
     : databaseVideos.map((video, index) => ({
@@ -137,6 +141,16 @@ export default async function Home({ searchParams }) {
         tone: ["peach", "lilac", "sage"][index % 3],
       }));
   const quickInfos = databaseQuickInfos ?? fallbackQuickInfos;
+  const reportageCards = databaseReportages === null
+    ? fallbackReportages.map((reportage, index) => ({
+        ...reportage,
+        author_name: reportage.author,
+        image_url: reportage.image,
+        image_description: reportage.imageDescription,
+        content: reportage.paragraphs.join("\n\n"),
+        position: index,
+      }))
+    : databaseReportages;
 
   return (
     <main>
@@ -280,23 +294,19 @@ export default async function Home({ searchParams }) {
               </div>
             ) : <p className="rounded-xl bg-paper p-6 text-sm text-muted">Aucune vidéo n’est mise en avant pour le moment.</p>}
             {videos.length ? (
-              <div className="marquee-viewport" aria-label="Vidéos et shorts, défilement automatique">
+              <div className="marquee-viewport video-gallery-viewport" aria-label="Vidéos et shorts">
                 <div className="marquee-track videos-marquee">
-                  {[0, 1].map((copy) => (
-                    <div className="marquee-group" key={copy} aria-hidden={copy === 1}>
-                      {videos.map((video) => (
-                        <article className="video-card" key={video.id ?? video.slug ?? video.title}>
-                          <div className={`video-art ${video.tone}`}>
-                            {video.video_url
-                              ? <video className="video-card-media" aria-label={`Lire ${video.title}`} controls={copy === 0} playsInline poster={video.thumbnail_url || undefined} preload={copy === 0 ? "metadata" : "none"} src={video.video_url} tabIndex={copy === 1 ? -1 : 0}>Votre navigateur ne peut pas lire cette vidéo.</video>
-                              : <span className="video-play"><Play size={17} fill="currentColor" /></span>}
-                            {video.duration && <span className="absolute bottom-3 right-3 z-10 rounded-full bg-black/65 px-2 py-1 text-[10px] font-bold text-white">{video.duration}</span>}
-                          </div>
-                          <p className="eyebrow mb-2 mt-4">{video.category || "Vidéo"}</p>
-                          <h3>{video.title}</h3>
-                        </article>
-                      ))}
-                    </div>
+                  {videos.map((video) => (
+                    <article className="video-card" key={video.id ?? video.slug ?? video.title}>
+                      <div className={`video-art ${video.tone}`}>
+                        {video.video_url
+                          ? <video className="video-card-media" aria-label={`Lire ${video.title}`} controls playsInline poster={video.thumbnail_url || undefined} preload="metadata" src={video.video_url}>Votre navigateur ne peut pas lire cette vidéo.</video>
+                          : <span className="video-play"><Play size={17} fill="currentColor" /></span>}
+                        {video.duration && <span className="absolute bottom-3 right-3 z-10 rounded-full bg-black/65 px-2 py-1 text-[10px] font-bold text-white">{video.duration}</span>}
+                      </div>
+                      <p className="eyebrow mb-2 mt-4">{video.category || "Vidéo"}</p>
+                      <h3>{video.title}</h3>
+                    </article>
                   ))}
                 </div>
               </div>
@@ -340,7 +350,7 @@ export default async function Home({ searchParams }) {
               <div className="marquee-track reportage-marquee">
                 {[0, 1].map((copy) => (
                   <div className="marquee-group" key={copy} aria-hidden={copy === 1}>
-                    {reportages.map((reportage) => (
+                    {reportageCards.map((reportage) => (
                       <Link
                         className="reportage-card"
                         href={`/reportages/${reportage.slug}`}
@@ -350,17 +360,18 @@ export default async function Home({ searchParams }) {
                         <span
                           className="reportage-bubble"
                           role="img"
-                          aria-label={reportage.imageDescription}
-                          style={{ backgroundImage: `url("${reportage.image}")` }}
+                          aria-label={reportage.image_description || reportage.title}
+                          style={{ backgroundImage: `url("${reportage.image_url || fallbackEventImages[0]}")` }}
                         />
                         <h3>{reportage.title}</h3>
-                        <p className="reportage-card-meta">{reportage.date}<br />Par {reportage.author}</p>
+                        <p className="reportage-card-meta">{reportage.published_at ? formatArticleTime(reportage.published_at) : reportage.date}<br />Par {reportage.author_name}</p>
                       </Link>
                     ))}
                   </div>
                 ))}
               </div>
             </div>
+            {!reportageCards.length && <p className="page-shell rounded-xl bg-paper p-6 text-sm text-muted">Aucun reportage à découvrir pour le moment.</p>}
           </section>
 
           <section className="scroll-reveal page-shell py-14 md:py-20" id="newsletter">
