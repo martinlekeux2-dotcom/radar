@@ -1,0 +1,58 @@
+export const reportages = [
+  {
+    slug: "au-fil-du-fleuve",
+    title: "Au fil du fleuve, la ville reprend son souffle",
+    date: "10 novembre 2026",
+    author: "Camille Moreau",
+    category: "Territoires",
+    image: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1200&q=85",
+    imageDescription: "Paysage ouvert au bord de l’eau",
+    paragraphs: [
+      "À l’aube, les quais s’éveillent avant le reste de la ville. Des joggeurs croisent les équipes qui nettoient les berges, tandis que les premiers bateaux glissent sur l’eau. Longtemps tourné vers ses axes routiers, le quartier redécouvre aujourd’hui son fleuve.",
+      "De nouveaux cheminements piétons relient les anciens entrepôts aux jardins partagés. « On a retrouvé un endroit où l’on peut simplement s’arrêter », raconte Nadia, habitante du quartier depuis vingt ans. Les associations locales ont participé aux ateliers qui ont dessiné ces aménagements, avec une priorité : préserver les zones végétalisées.",
+      "Le chantier se poursuivra par étapes tout au long de l’année. Les élus promettent un suivi public de la qualité de l’eau et de la fréquentation des berges. Ici, la transformation ne tient pas à un grand geste, mais à ces accès quotidiens qui rapprochent peu à peu les habitants du fleuve.",
+    ],
+  },
+  {
+    slug: "les-mains-qui-reparent",
+    title: "Dans l’atelier, les objets repartent pour une seconde vie",
+    date: "8 novembre 2026",
+    author: "Thomas Bernard",
+    category: "Société",
+    image: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1200&q=85",
+    imageDescription: "Artisan au travail dans un atelier lumineux",
+    paragraphs: [
+      "Sur les établis, radios, lampes et vélos attendent leur tour. Chaque semaine, l’atelier de réparation ouvre ses portes aux habitants qui veulent comprendre comment fonctionne un objet avant de le remplacer.",
+      "Les bénévoles accompagnent les visiteurs, sans faire à leur place. Une panne devient l’occasion d’apprendre un geste, d’identifier une pièce et parfois de rencontrer son voisin de table. Les outils sont prêtés et les pièces de rechange choisies ensemble.",
+      "Le collectif accueille désormais une centaine de personnes par mois. Son prochain défi : proposer des permanences dans plusieurs quartiers afin que la réparation reste accessible, même sans voiture ni matériel chez soi.",
+    ],
+  },
+  {
+    slug: "la-scene-au-coeur-du-quartier",
+    title: "Une scène ouverte transforme la place du quartier",
+    date: "5 novembre 2026",
+    author: "Sarah Diallo",
+    category: "Culture",
+    image: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1200&q=85",
+    imageDescription: "Public réuni pour un spectacle en plein air",
+    paragraphs: [
+      "À la tombée du jour, les chaises se remplissent autour de la petite scène installée sur la place. Au programme : un groupe du conservatoire, une chorale amateur et les textes écrits pendant les ateliers du centre social.",
+      "L’événement est né d’une idée simple : laisser les habitants choisir ce qu’ils ont envie de partager. Les commerçants prêtent des rallonges, les jeunes s’occupent du son et les artistes professionnels accompagnent les répétitions.",
+      "La scène restera ouverte un jeudi par mois jusqu’au printemps. Les organisateurs espèrent y faire découvrir les talents du quartier et donner aux passants une bonne raison de s’attarder.",
+    ],
+  },
+  {
+    slug: "des-cours-plus-frais",
+    title: "À l’école, la cour se met à l’ombre",
+    date: "2 novembre 2026",
+    author: "Émile Laurent",
+    category: "Environnement",
+    image: "https://images.unsplash.com/photo-1476231682828-37e571bc172f?auto=format&fit=crop&w=1200&q=85",
+    imageDescription: "Arbres formant un couvert végétal",
+    paragraphs: [
+      "Dans la cour de l’école Jean-Moulin, quelques arbres nouvellement plantés dessinent déjà les espaces de demain. Les classes ont suivi les travaux et observé le sol avant de décider où l’ombre serait la plus utile.",
+      "Une partie du bitume a été retirée pour laisser l’eau s’infiltrer. Des bancs ont été installés près des plantations et les enfants participent à leur entretien avec l’équipe éducative. L’aménagement cherche autant à rafraîchir la cour qu’à créer de nouveaux coins de jeu.",
+      "La commune prévoit d’évaluer la température des sols et le confort des élèves au fil des saisons. Si le test est concluant, le même principe pourrait être adapté à d’autres cours de la ville dès l’an prochain.",
+    ],
+  },
+];
