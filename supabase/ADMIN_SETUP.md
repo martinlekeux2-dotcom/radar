@@ -1,7 +1,7 @@
 # Configuration de l’espace d’administration
 
 1. Dans Supabase, activez **Authentication** et créez le premier utilisateur dans **Authentication → Users**.
-2. Exécutez `supabase/schema.sql`, puis les fichiers de `supabase/migrations` dans l’ordre de leur nom, dans le **SQL Editor**. Réexécutez les migrations après les mises à jour du site. Le schéma crée le bucket public `radar-media` : l’envoi passe par l’admin, tandis que la lecture des médias est publique. Les vidéos acceptées sont MP4, WebM ou MOV (1 Go maximum, sous réserve de la limite du forfait Supabase) et sont envoyées par morceaux reprenables ; les images sont JPEG, PNG ou WebP (8 Mo maximum).
+2. Exécutez `supabase/schema.sql`, puis les fichiers de `supabase/migrations` dans l’ordre de leur nom, dans le **SQL Editor**. Réexécutez les migrations après les mises à jour du site. Le schéma crée le bucket public `radar-media` ; s’il manque, la route d’envoi le recrée automatiquement. L’envoi passe par l’admin, tandis que la lecture des médias est publique. Les vidéos acceptées sont MP4, WebM ou MOV (1 Go maximum, sous réserve de la limite du forfait Supabase) et sont envoyées par morceaux reprenables ; les images sont JPEG, PNG ou WebP (20 Mo maximum).
 3. Accordez le rôle administrateur au premier utilisateur en remplaçant l’adresse e-mail ci-dessous :
 
    ```sql

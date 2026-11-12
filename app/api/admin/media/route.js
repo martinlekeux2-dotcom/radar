@@ -4,6 +4,14 @@ import { readJson, withAdmin } from "../../../../src/lib/admin-api";
 const bucket = "radar-media";
 const maximumVideoSize = 1024 * 1024 * 1024;
 const maximumImageSize = 20 * 1024 * 1024;
+const allowedMimeTypes = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+];
 const mediaTypes = {
   video: {
     "video/mp4": "mp4",
@@ -34,6 +42,25 @@ export async function POST(request) {
     }
 
     const path = `${kind}/${randomUUID()}.${extension}`;
+    const storage = db.storage;
+    const { error: bucketError } = await storage.getBucket(bucket);
+    if (bucketError?.status === 404) {
+      const { error: createError } = await storage.createBucket(bucket, {
+        public: true,
+        fileSizeLimit: maximumVideoSize,
+        allowedMimeTypes,
+      });
+      if (createError && createError.status !== 409) {
+        return Response.json({
+          error: `Impossible de préparer le stockage des fichiers : ${createError.message}`,
+        }, { status: 500 });
+      }
+    } else if (bucketError) {
+      return Response.json({
+        error: `Impossible de vérifier le stockage des fichiers : ${bucketError.message}`,
+      }, { status: 500 });
+    }
+
     const { data, error } = await db.storage.from(bucket).createSignedUploadUrl(path);
     if (error || !data?.token) {
       return Response.json({
