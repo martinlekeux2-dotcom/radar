@@ -2,29 +2,55 @@ import { readJson, withAdmin } from "../../../../src/lib/admin-api";
 
 const accountRoles = ["admin", "editor"];
 
+async function getAdminCount(db) {
+  const { count, error } = await db
+    .from("admin_users")
+    .select("*", { count: "exact", head: true })
+    .eq("role", "admin");
+
+  return error ? { error } : { count: count ?? 0 };
+}
+
+async function getAllAuthUsers(db) {
+  const perPage = 1000;
+  const users = [];
+
+  for (let page = 1; ; page += 1) {
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage });
+    if (error) return { error };
+
+    const pageUsers = data?.users ?? [];
+    users.push(...pageUsers);
+    if (pageUsers.length < perPage) return { users };
+  }
+}
+
 export async function GET(request) {
   return withAdmin(request, async ({ db }) => {
-    const [{ data: memberships, error: membershipError }, { data: usersData, error: usersError }] =
+    const [{ data: memberships, error: membershipError }, authUsersResult] =
       await Promise.all([
         db.from("admin_users").select("user_id, role, created_at").order("created_at"),
-        db.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+        getAllAuthUsers(db),
       ]);
 
-    if (membershipError || usersError) {
-      const error = membershipError ?? usersError;
+    if (membershipError || authUsersResult.error) {
+      const error = membershipError ?? authUsersResult.error;
       return Response.json({ error: `Impossible de charger les comptes : ${error.message}` }, { status: 500 });
     }
 
-    const usersById = new Map(usersData.users.map((user) => [user.id, user]));
-    const accounts = memberships.map(({ user_id, role, created_at }) => {
-      const user = usersById.get(user_id);
+    const membershipsById = new Map(memberships.map((membership) => [membership.user_id, membership]));
+    const accounts = authUsersResult.users.map((user) => {
+      const membership = membershipsById.get(user.id);
       return {
-        id: user_id,
-        email: user?.email ?? "Adresse inconnue",
-        role,
-        createdAt: created_at,
-        lastSignInAt: user?.last_sign_in_at ?? null,
-        confirmed: Boolean(user?.email_confirmed_at),
+        id: user.id,
+        email: user.email ?? null,
+        phone: user.phone ?? null,
+        role: membership?.role ?? null,
+        createdAt: user.created_at ?? membership?.created_at ?? null,
+        lastSignInAt: user.last_sign_in_at ?? null,
+        confirmed: user.email
+          ? Boolean(user.email_confirmed_at)
+          : Boolean(user.phone_confirmed_at),
       };
     });
 
@@ -57,12 +83,8 @@ export async function POST(request) {
       .from("admin_users")
       .insert({ user_id: invitation.user.id, role });
     if (membershipError) {
-      const { error: cleanupError } = await db.auth.admin.deleteUser(invitation.user.id);
-      const cleanupMessage = cleanupError
-        ? ` Le compte invité n’a pas pu être supprimé automatiquement : ${cleanupError.message}`
-        : " L’invitation a été annulée.";
       return Response.json({
-        error: `L’invitation a été envoyée, mais l’accès admin n’a pas pu être configuré : ${membershipError.message}.${cleanupMessage}`,
+        error: `L’invitation a été envoyée, mais l’accès admin n’a pas pu être configuré : ${membershipError.message}. Le compte reste dans Supabase Auth sans accès au site.`,
       }, { status: 500 });
     }
 
@@ -75,11 +97,23 @@ export async function PATCH(request) {
     const body = await readJson(request);
     if (body.error) return body.error;
     const { id, role } = body.data;
-    if (typeof id !== "string" || !accountRoles.includes(role)) {
+    if (typeof id !== "string" || ![...accountRoles, "none"].includes(role)) {
       return Response.json({ error: "Compte ou rôle invalide." }, { status: 400 });
     }
     if (id === user.id) {
       return Response.json({ error: "Vous ne pouvez pas modifier votre propre rôle." }, { status: 400 });
+    }
+
+    const { data: authUserData, error: authUserError } = await db.auth.admin.getUserById(id);
+    if (authUserError) {
+      const status = authUserError.status === 404 ? 404 : 500;
+      const message = status === 404
+        ? "Ce compte Supabase Auth n’existe plus."
+        : `Impossible de vérifier le compte : ${authUserError.message}`;
+      return Response.json({ error: message }, { status });
+    }
+    if (!authUserData.user) {
+      return Response.json({ error: "Ce compte Supabase Auth n’existe plus." }, { status: 404 });
     }
 
     const { data: target, error: targetError } = await db
@@ -90,22 +124,30 @@ export async function PATCH(request) {
     if (targetError) {
       return Response.json({ error: `Impossible de vérifier le compte : ${targetError.message}` }, { status: 500 });
     }
-    if (!target) return Response.json({ error: "Ce compte n’existe plus." }, { status: 404 });
 
-    if (target.role === "admin" && role !== "admin") {
-      const { count, error: countError } = await db
-        .from("admin_users")
-        .select("*", { count: "exact", head: true })
-        .eq("role", "admin");
-      if (countError) {
-        return Response.json({ error: `Impossible de vérifier les administrateurs : ${countError.message}` }, { status: 500 });
+    if (target?.role === "admin" && role !== "admin") {
+      const adminCount = await getAdminCount(db);
+      if (adminCount.error) {
+        return Response.json({ error: `Impossible de vérifier les administrateurs : ${adminCount.error.message}` }, { status: 500 });
       }
-      if ((count ?? 0) <= 1) {
+      if (adminCount.count <= 1) {
         return Response.json({ error: "Le dernier compte administrateur ne peut pas être rétrogradé." }, { status: 409 });
       }
     }
 
-    const { error } = await db.from("admin_users").update({ role }).eq("user_id", id);
+    if (role === "none") {
+      if (!target) return Response.json({ success: true });
+
+      const { error } = await db.from("admin_users").delete().eq("user_id", id);
+      if (error) {
+        return Response.json({ error: `Impossible de retirer l’accès admin : ${error.message}` }, { status: 400 });
+      }
+      return Response.json({ success: true });
+    }
+
+    const { error } = await db
+      .from("admin_users")
+      .upsert({ user_id: id, role }, { onConflict: "user_id" });
     if (error) {
       return Response.json({ error: `Impossible de modifier le rôle : ${error.message}` }, { status: 400 });
     }
@@ -125,6 +167,18 @@ export async function DELETE(request) {
       return Response.json({ error: "Vous ne pouvez pas supprimer votre propre compte depuis cet espace." }, { status: 400 });
     }
 
+    const { data: authUserData, error: authUserError } = await db.auth.admin.getUserById(id);
+    if (authUserError) {
+      const status = authUserError.status === 404 ? 404 : 500;
+      const message = status === 404
+        ? "Ce compte Supabase Auth n’existe plus."
+        : `Impossible de vérifier le compte : ${authUserError.message}`;
+      return Response.json({ error: message }, { status });
+    }
+    if (!authUserData.user) {
+      return Response.json({ error: "Ce compte Supabase Auth n’existe plus." }, { status: 404 });
+    }
+
     const { data: target, error: targetError } = await db
       .from("admin_users")
       .select("user_id, role")
@@ -133,17 +187,13 @@ export async function DELETE(request) {
     if (targetError) {
       return Response.json({ error: `Impossible de vérifier le compte : ${targetError.message}` }, { status: 500 });
     }
-    if (!target) return Response.json({ error: "Ce compte n’existe plus." }, { status: 404 });
 
-    if (target.role === "admin") {
-      const { count, error: countError } = await db
-        .from("admin_users")
-        .select("*", { count: "exact", head: true })
-        .eq("role", "admin");
-      if (countError) {
-        return Response.json({ error: `Impossible de vérifier les administrateurs : ${countError.message}` }, { status: 500 });
+    if (target?.role === "admin") {
+      const adminCount = await getAdminCount(db);
+      if (adminCount.error) {
+        return Response.json({ error: `Impossible de vérifier les administrateurs : ${adminCount.error.message}` }, { status: 500 });
       }
-      if ((count ?? 0) <= 1) {
+      if (adminCount.count <= 1) {
         return Response.json({ error: "Le dernier compte administrateur ne peut pas être supprimé." }, { status: 409 });
       }
     }

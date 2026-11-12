@@ -16,6 +16,18 @@
 
 .rubrique-page {
   padding-block: clamp(28px, 5vw, 60px) 70px;
+  animation: rubrique-page-in 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes rubrique-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .rubrique-heading {
@@ -110,6 +122,13 @@
 
 .rubrique-back-link:hover {
   color: #171717;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rubrique-page,
+  .menu-panel {
+    animation: none;
+  }
 }
 
 :root {
@@ -237,11 +256,26 @@ a {
 .menu-summary {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 10px 0 10px 10px;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid rgb(62 40 80 / 18%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 82%);
+  box-shadow: 0 4px 14px rgb(23 23 23 / 5%);
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
   font-size: 13px;
   font-weight: 700;
   list-style: none;
+}
+
+.menu-summary:hover,
+.menu-summary:focus-visible,
+.menu-summary.is-open {
+  border-color: rgb(62 40 80 / 35%);
+  background: #fff;
+  box-shadow: 0 7px 20px rgb(62 40 80 / 12%);
+  color: #3e2850;
+  transform: translateY(-1px);
 }
 
 .menu-summary::-webkit-details-marker {
@@ -250,26 +284,103 @@ a {
 
 .menu-panel {
   position: absolute;
-  top: 100%;
+  z-index: 30;
+  top: calc(100% + 10px);
   right: 0;
   display: grid;
-  width: 220px;
-  gap: 2px;
-  padding: 9px;
-  border: 1px solid #e8e5de;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 14px 40px rgb(23 23 23 / 10%);
+  width: min(308px, calc(100vw - 32px));
+  gap: 12px;
+  padding: 17px 14px 12px;
+  border: 1px solid rgb(62 40 80 / 14%);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 97%);
+  box-shadow: 0 20px 50px rgb(23 23 23 / 16%);
+  backdrop-filter: blur(12px);
+  transform-origin: top right;
+  animation: menu-panel-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.menu-panel a {
-  padding: 11px 12px;
-  border-radius: 7px;
+.menu-panel::before {
+  position: absolute;
+  top: 0;
+  right: 16px;
+  left: 16px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: linear-gradient(90deg, var(--color-radar-green), #3e2850);
+  content: "";
+}
+
+.menu-panel-title {
+  margin: 0;
+  color: #77766f;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.menu-panel-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.menu-panel-sections a {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: #faf9f6;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease, transform 150ms ease;
   font-size: 13px;
 }
 
-.menu-panel a:hover {
-  background: #f4f1eb;
+.menu-panel-sections a:hover,
+.menu-panel-sections a:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgb(62 40 80 / 14%);
+  background: #f3edf7;
+  color: #3e2850;
+}
+
+.menu-panel-sections svg {
+  flex: 0 0 auto;
+  color: #3e2850;
+}
+
+.menu-panel-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 15px;
+  padding-top: 11px;
+  border-top: 1px solid #e8e5de;
+}
+
+.menu-panel-secondary a {
+  color: #5f5c62;
+  font-size: 11px;
+  transition: color 150ms ease;
+}
+
+.menu-panel-secondary a:hover,
+.menu-panel-secondary a:focus-visible {
+  color: #3e2850;
+  text-decoration: underline;
+}
+
+@keyframes menu-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-7px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .section-nav {
@@ -2441,6 +2552,15 @@ a {
   background: #3e2850;
 }
 
+.footer-brand {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(18 10 24 / 12%);
+}
+
 .footer-logo {
   display: block;
   width: 148px;
@@ -2552,6 +2672,11 @@ a {
 
   .menu-summary span {
     display: none;
+  }
+
+  .menu-summary {
+    gap: 0;
+    padding: 9px;
   }
 
   .search-form {

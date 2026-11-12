@@ -14,7 +14,7 @@
 
 4. Configurez les variables dans `.env.local` à partir de `.env.example`. `SUPABASE_SERVICE_ROLE_KEY` et `OPENAI_API_KEY` sont des clés secrètes : elles ne doivent jamais être préfixées par `NEXT_PUBLIC_` ni exposées au navigateur. La clé OpenAI est utilisée uniquement par la route serveur de résumé.
 5. Dans **Authentication → URL Configuration**, ajoutez `/admin` aux URL de redirection autorisées pour votre environnement local et votre domaine de production.
-6. Redémarrez Next.js et ouvrez `/admin`. Les comptes ajoutés dans **Gestion des comptes** reçoivent une invitation Supabase. Seuls les comptes présents dans `admin_users` peuvent accéder à l’administration.
+6. Redémarrez Next.js et ouvrez `/admin`. **Gestion des comptes** liste tous les utilisateurs de Supabase Auth. Les invitations envoyées depuis cette section créent un utilisateur Auth et lui attribuent le rôle choisi. Les autres comptes Auth restent visibles sans accès à l’administration jusqu’à ce qu’un administrateur leur attribue un rôle. Choisir **Aucun accès** retire le rôle sans supprimer le compte Auth ; l’action de suppression efface définitivement le compte Supabase.
 
 L’espace utilise les articles de `public.articles`, les commentaires de `public.comments` et les blocs-notes privés de `public.admin_notes`. Si la base est déjà configurée, exécutez à nouveau `supabase/schema.sql` pour créer la table du bloc-notes. Les commentaires et les notes sont privés sous RLS et leur accès passe par les routes serveur protégées.
 

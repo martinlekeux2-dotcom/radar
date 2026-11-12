@@ -40,7 +40,7 @@ export default function SiteFooter() {
       <div className="page-shell flex flex-col gap-8 py-10 md:flex-row md:items-end md:justify-between md:py-14">
         <div>
           <Link className="footer-brand" href="/" aria-label="RADAR, accueil">
-            <Image className="footer-logo" src="/radar-logo-footer.png" alt="RADAR — Capte l’info" width={168} height={113} />
+            <Image className="footer-logo" src="/radar-logo-hq.png" alt="RADAR — Capte l’info" width={504} height={339} unoptimized />
           </Link>
           <p className="mt-3 max-w-sm text-sm leading-6 text-white/60">L&apos;actualité en mouvement. Proche de vous, ouverte sur le monde.</p>
         </div>

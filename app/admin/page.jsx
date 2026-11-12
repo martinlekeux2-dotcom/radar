@@ -396,9 +396,14 @@ function ProfileView({ profile, onSave, busy }) {
   );
 }
 
-function AccountsView({ accounts, onInvite, onRoleChange, onDelete, busy }) {
+function getAccountIdentifier(account) {
+  return account.email || account.phone || `Compte ${account.id.slice(0, 8)}`;
+}
+
+function AccountsView({ accounts, currentUserId, onInvite, onRoleChange, onDelete, busy }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("editor");
+  const adminAccessCount = accounts.filter((account) => account.role).length;
 
   function invite(event) {
     event.preventDefault();
@@ -408,22 +413,59 @@ function AccountsView({ accounts, onInvite, onRoleChange, onDelete, busy }) {
   return (
     <>
       <form className="admin-panel admin-invite-form" onSubmit={invite}>
-        <div><p className="admin-eyebrow">Équipe</p><h2>Inviter un compte</h2><p className="admin-muted">Supabase enverra un e-mail d’invitation à cette adresse.</p></div>
+        <div><p className="admin-eyebrow">Équipe</p><h2>Inviter un compte</h2><p className="admin-muted">Supabase enverra une invitation. Pour un utilisateur Auth déjà existant, attribuez son rôle dans la liste ci-dessous.</p></div>
         <label>Adresse e-mail<input autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /></label>
         <label>Rôle<select onChange={(event) => setRole(event.target.value)} value={role}><option value="editor">Éditeur</option><option value="admin">Administrateur</option></select></label>
         <button className="admin-primary-button" disabled={busy} type="submit"><Mail size={16} /> Envoyer l’invitation</button>
       </form>
       <section className="admin-panel">
-        <div className="admin-panel-heading"><div><p className="admin-eyebrow">Accès actifs</p><h2>Comptes de l’équipe</h2></div><span className="admin-muted">{accounts.length} compte{accounts.length > 1 ? "s" : ""}</span></div>
-        {!accounts.length ? <p className="admin-empty">Aucun autre compte d’équipe.</p> : (
+        <div className="admin-panel-heading">
+          <div>
+            <p className="admin-eyebrow">Supabase Auth</p>
+            <h2>Comptes d’authentification</h2>
+            <p className="admin-muted">Tous les comptes Auth sont listés. Seuls ceux avec un rôle ont accès à l’administration.</p>
+          </div>
+          <span className="admin-muted">{accounts.length} compte{accounts.length > 1 ? "s" : ""} · {adminAccessCount} accès admin</span>
+        </div>
+        {!accounts.length ? <p className="admin-empty">Aucun compte Supabase Auth.</p> : (
           <div className="admin-table-wrap"><table className="admin-table">
-            <thead><tr><th>Compte</th><th>Inscription</th><th>Dernière connexion</th><th>Rôle</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Compte</th><th>Création</th><th>Dernière connexion</th><th>Accès au site</th><th>Actions</th></tr></thead>
             <tbody>{accounts.map((account) => (
               <tr key={account.id}>
-                <td><strong>{account.email}</strong><span className="admin-table-subtitle">{account.confirmed ? "E-mail confirmé" : "Invitation à confirmer"}</span></td>
+                <td>
+                  <strong>{getAccountIdentifier(account)}</strong>
+                  <span className="admin-table-subtitle">
+                    {account.email
+                      ? account.confirmed ? "E-mail confirmé" : "E-mail non confirmé"
+                      : account.phone
+                        ? account.confirmed ? "Téléphone confirmé" : "Téléphone non confirmé"
+                        : "Compte Supabase Auth"}
+                  </span>
+                </td>
                 <td>{formatDate(account.createdAt)}</td><td>{formatDate(account.lastSignInAt)}</td>
-                <td><select aria-label={`Rôle de ${account.email}`} disabled={busy} onChange={(event) => onRoleChange(account.id, event.target.value)} value={account.role}><option value="editor">Éditeur</option><option value="admin">Administrateur</option></select></td>
-                <td><button aria-label={`Supprimer ${account.email}`} className="admin-row-button admin-danger-icon" disabled={busy} onClick={() => onDelete(account)} type="button"><Trash2 size={16} /></button></td>
+                <td>
+                  <select
+                    aria-label={`Accès admin de ${getAccountIdentifier(account)}`}
+                    disabled={busy || account.id === currentUserId}
+                    onChange={(event) => onRoleChange(account.id, event.target.value)}
+                    value={account.role ?? "none"}
+                  >
+                    <option value="none">Aucun accès</option>
+                    <option value="editor">Éditeur</option>
+                    <option value="admin">Administrateur</option>
+                  </select>
+                </td>
+                <td>
+                  <button
+                    aria-label={`Supprimer définitivement ${getAccountIdentifier(account)}`}
+                    className="admin-row-button admin-danger-icon"
+                    disabled={busy || account.id === currentUserId}
+                    onClick={() => onDelete(account)}
+                    type="button"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </td>
               </tr>
             ))}</tbody>
           </table></div>
@@ -760,7 +802,8 @@ function AdminWorkspace({ session, supabase }) {
   }
 
   async function deleteAccount(account) {
-    if (!window.confirm(`Supprimer définitivement le compte ${account.email} ? Cette action est irréversible.`)) return;
+    const identifier = getAccountIdentifier(account);
+    if (!window.confirm(`Supprimer définitivement le compte Supabase ${identifier} ? Cette action est irréversible.`)) return;
     await runAction(() => adminRequest("accounts", { method: "DELETE", body: { id: account.id } }), "Compte supprimé.");
   }
 
@@ -819,7 +862,7 @@ function AdminWorkspace({ session, supabase }) {
               {section === "comments" && <CommentsView comments={data ?? []} onModerate={moderateComment} onDelete={deleteComment} />}
               {section === "profile" && <ProfileView profile={profile} onSave={saveProfile} busy={busy} />}
               {section === "accounts" && (canManageAccounts
-                ? <AccountsView accounts={data ?? []} onInvite={inviteAccount} onRoleChange={changeAccountRole} onDelete={deleteAccount} busy={busy} />
+                ? <AccountsView accounts={data ?? []} currentUserId={session.user.id} onInvite={inviteAccount} onRoleChange={changeAccountRole} onDelete={deleteAccount} busy={busy} />
                 : <p className="admin-alert">La gestion des comptes est réservée aux administrateurs.</p>)}
               {section === "statistics" && <StatisticsView data={data} />}
             </>

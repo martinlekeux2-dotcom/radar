@@ -43,11 +43,11 @@ export default function SiteHeader() {
       <div className="page-shell">
         <div className="header-top">
           <Link className="brand-link" href="/" aria-label="RADAR, accueil">
-            <Image className="brand-logo" src="/radar-logo.png" alt="RADAR — Capte l’info" width={168} height={113} priority />
+            <Image className="brand-logo" src="/radar-logo-hq.png" alt="RADAR — Capte l’info" width={504} height={339} preload unoptimized />
           </Link>
           <form action="/" className="search-form" role="search">
             <Search size={17} aria-hidden="true" />
-            <input aria-label="Rechercher sur RADAR" name="q" placeholder="Rechercher par sujet ou par ville…" />
+            <input aria-label="Rechercher sur RADAR" name="q" placeholder="rechercher un sujet" />
             <button aria-label="Lancer la recherche" type="submit"><span className="sr-only">Rechercher</span><Search size={16} /></button>
           </form>
           <div className="header-actions">
@@ -64,19 +64,32 @@ export default function SiteHeader() {
             >
               <button
                 aria-expanded={menuOpen}
+                aria-controls="main-menu-panel"
+                aria-label="Ouvrir le menu principal"
                 aria-haspopup="true"
-                className="menu-summary"
+                className={menuOpen ? "menu-summary is-open" : "menu-summary"}
                 onClick={openMenu}
                 onFocus={openMenu}
                 type="button"
               >
-                <Menu size={19} /><span>Menu</span>
+                <Menu size={19} /><span>Menu principal</span>
               </button>
               {menuOpen && (
-                <nav className="menu-panel" aria-label="Menu secondaire" onMouseEnter={openMenu}>
-                  <Link href="#qui-sommes-nous">Qui sommes-nous ?</Link>
-                  <Link href="mailto:bonjour@radar.media">Contact</Link>
-                  <Link href="#reseaux">Nous suivre</Link>
+                <nav className="menu-panel" id="main-menu-panel" aria-label="Menu principal" onMouseEnter={openMenu}>
+                  <p className="menu-panel-title">Parcourir les rubriques</p>
+                  <div className="menu-panel-sections">
+                    {sections.map(({ label, href, Icon }) => (
+                      <Link href={href} key={href} onClick={() => setMenuOpen(false)}>
+                        <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
+                        <span>{label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="menu-panel-secondary">
+                    <Link href="#qui-sommes-nous">Qui sommes-nous ?</Link>
+                    <Link href="mailto:bonjour@radar.media">Contact</Link>
+                    <Link href="#reseaux">Nous suivre</Link>
+                  </div>
                 </nav>
               )}
             </div>
