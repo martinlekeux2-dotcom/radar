@@ -1,5 +1,9 @@
 function renderInline(text) {
-  return text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, index) => {
+  return text.split(/(!\[[^\]]*\]\(https?:\/\/[^)\s]+\)|\*\*[^*]+\*\*|\*[^*]+\*)/gi).map((part, index) => {
+    const image = part.match(/^!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)$/i);
+    if (image) {
+      return <img alt={image[1]} decoding="async" key={index} loading="lazy" src={image[2]} />;
+    }
     if (part.startsWith("**") && part.endsWith("**")) {
       return <strong key={index}>{part.slice(2, -2)}</strong>;
     }
@@ -27,9 +31,13 @@ export default function ArticleContent({ content }) {
     }
 
     const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    const image = line.match(/^!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)$/i);
     if (heading) {
       flushParagraph();
       blocks.push({ type: `h${heading[1].length}`, text: heading[2] });
+    } else if (image) {
+      flushParagraph();
+      blocks.push({ type: "image", alt: image[1], src: image[2] });
     } else if (line.startsWith(">")) {
       flushParagraph();
       blocks.push({ type: "quote", text: line.replace(/^>\s?/, "") });
@@ -42,6 +50,13 @@ export default function ArticleContent({ content }) {
   return (
     <div className="article-body">
       {blocks.map((block, index) => {
+        if (block.type === "image") {
+          return (
+            <figure className="article-image" key={index}>
+              <img alt={block.alt} decoding="async" loading="lazy" src={block.src} />
+            </figure>
+          );
+        }
         if (block.type === "quote") return <blockquote key={index}>{renderInline(block.text)}</blockquote>;
         if (block.type === "h1") return <h2 key={index}>{renderInline(block.text)}</h2>;
         if (block.type === "h2") return <h3 key={index}>{renderInline(block.text)}</h3>;

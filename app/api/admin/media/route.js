@@ -3,7 +3,7 @@ import { readJson, withAdmin } from "../../../../src/lib/admin-api";
 
 const bucket = "radar-media";
 const maximumVideoSize = 1024 * 1024 * 1024;
-const maximumImageSize = 8 * 1024 * 1024;
+const maximumImageSize = 20 * 1024 * 1024;
 const mediaTypes = {
   video: {
     "video/mp4": "mp4",
@@ -29,7 +29,7 @@ export async function POST(request) {
       return Response.json({
         error: kind === "video"
           ? "Format vidéo non autorisé ou fichier supérieur à 1 Go."
-          : "Format d’image non autorisé ou fichier supérieur à 8 Mo.",
+          : "Format d’image non autorisé ou fichier supérieur à 20 Mo.",
       }, { status: 400 });
     }
 

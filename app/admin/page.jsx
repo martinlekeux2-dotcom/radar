@@ -359,7 +359,7 @@ function MediaUploadControl({ kind, onUploaded, onUploadingChange }) {
   return (
     <div className="admin-upload-control">
       <label>
-        Importer {kind === "video" ? "une vidéo (1 Go max)" : "une image (8 Mo max)"}
+        Importer {kind === "video" ? "une vidéo (1 Go max)" : "une image (20 Mo max)"}
         <input accept={kind === "video" ? "video/mp4,video/webm,video/quicktime" : "image/jpeg,image/png,image/webp"} disabled={uploading} onChange={handleUpload} type="file" />
       </label>
       {uploading && <span className="admin-muted">Envoi en cours… {progress} %</span>}
@@ -421,6 +421,30 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
     requestAnimationFrame(() => {
       textarea.focus();
       textarea.setSelectionRange(selectionStart + prefix.length, selectionStart + prefix.length + selected.length);
+    });
+  }
+
+  function insertImage(url) {
+    const textarea = contentRef.current;
+    const content = form.content ?? "";
+    const selectionStart = textarea?.selectionStart ?? content.length;
+    const before = content.slice(0, selectionStart);
+    const after = content.slice(selectionStart);
+    const prefix = before && !before.endsWith("\n") ? "\n" : "";
+    const description = "Décrivez la photo";
+    const markdown = `![${description}](${url})`;
+    const suffix = after && !after.startsWith("\n") ? "\n" : "";
+    const inserted = `${prefix}${markdown}${suffix}`;
+
+    setForm((current) => ({
+      ...current,
+      content: `${before}${inserted}${after}`,
+    }));
+    requestAnimationFrame(() => {
+      if (!textarea) return;
+      const descriptionStart = selectionStart + prefix.length + 2;
+      textarea.focus();
+      textarea.setSelectionRange(descriptionStart, descriptionStart + description.length);
     });
   }
 
@@ -491,8 +515,9 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
               <button onClick={() => insertFormatting("\n## ", "\n")} type="button"><Heading2 size={16} /> Intertitre</button>
               <button onClick={() => insertFormatting("\n> ", "\n")} type="button"><Quote size={16} /> Exergue</button>
             </div>
+            <MediaUploadControl kind="image" onUploaded={insertImage} onUploadingChange={onUploadingChange} />
             <textarea className="admin-content-field" id="article-content" name="content" onChange={updateField} ref={contentRef} rows={10} value={form.content ?? ""} />
-            <p className="admin-muted">Les boutons ajoutent une mise en forme Markdown, affichée automatiquement dans l’article publié.</p>
+            <p className="admin-muted">Importez une photo pour l’insérer dans l’article. Décrivez-la dans le texte alternatif sélectionné. La mise en forme Markdown est affichée dans l’article publié.</p>
           </div>
         </div>
         {error && <p className="admin-alert" role="alert">{error}</p>}
@@ -516,7 +541,7 @@ function emptyContentItem(kind) {
       duration_seconds: "",
       category: "",
       featured_position: "",
-      status: "draft",
+      status: "published",
     };
   }
   if (kind === "event") {
@@ -645,6 +670,7 @@ function ContentEditor({ kind, item, onClose, onSave, busy, error }) {
                   <option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option>
                 </select>
               </label>
+              <p className="admin-muted admin-form-wide">Seules les vidéos publiées apparaissent sur le site. Le format MP4 est recommandé pour une lecture compatible avec la plupart des navigateurs.</p>
             </>
           )}
           {isEvent && (

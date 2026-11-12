@@ -3976,6 +3976,18 @@ a {
   margin: 0 0 20px;
 }
 
+.article-body .article-image {
+  margin: 28px 0;
+}
+
+.article-body .article-image img,
+.article-body p img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+}
+
 .article-body h2,
 .article-body h3,
 .article-body h4 {
