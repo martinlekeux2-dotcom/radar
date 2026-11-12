@@ -1,4 +1,5 @@
 import { readJson, withAdmin } from "../../../../src/lib/admin-api";
+import { isHttpUrl, mainMenuSections } from "../../../../src/lib/content-config";
 
 const articleStatuses = ["draft", "published", "archived"];
 
@@ -10,6 +11,9 @@ function validateArticle(body) {
   const content = typeof body.content === "string" ? body.content : "";
   const excerpt = typeof body.excerpt === "string" ? body.excerpt.trim() : "";
   const status = body.status;
+  const menuSection = typeof body.menu_section === "string" ? body.menu_section.trim() : "";
+  const showOnHome = body.show_on_home === undefined ? true : body.show_on_home;
+  const coverImageUrl = typeof body.cover_image_url === "string" ? body.cover_image_url.trim() : "";
 
   if (!title || !category || !slug) {
     return { error: "Le titre, le slug et la rubrique sont obligatoires." };
@@ -20,6 +24,15 @@ function validateArticle(body) {
   if (!articleStatuses.includes(status)) {
     return { error: "Le statut de l’article n’est pas valide." };
   }
+  if (typeof showOnHome !== "boolean") {
+    return { error: "Le choix d’affichage sur l’accueil n’est pas valide." };
+  }
+  if (menuSection && !mainMenuSections.some((section) => section.slug === menuSection)) {
+    return { error: "La rubrique choisie dans le menu principal n’est pas valide." };
+  }
+  if (coverImageUrl && !isHttpUrl(coverImageUrl)) {
+    return { error: "L’image de couverture doit utiliser une URL HTTP ou HTTPS valide." };
+  }
 
   return {
     article: {
@@ -29,11 +42,11 @@ function validateArticle(body) {
       content,
       excerpt: excerpt || null,
       location: location || null,
+      show_on_home: showOnHome,
+      menu_section: menuSection || null,
       status,
       author_name: typeof body.author_name === "string" ? body.author_name.trim() || null : null,
-      cover_image_url: typeof body.cover_image_url === "string"
-        ? body.cover_image_url.trim() || null
-        : null,
+      cover_image_url: coverImageUrl || null,
       tags: Array.isArray(body.tags)
         ? body.tags.filter((tag) => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean)
         : [],
@@ -51,7 +64,7 @@ export async function GET(request) {
   return withAdmin(request, async ({ db }) => {
     const { data, error } = await db
       .from("articles")
-      .select("id, title, slug, excerpt, content, category, location, author_name, cover_image_url, tags, status, published_at, created_at, updated_at")
+      .select("id, title, slug, excerpt, content, category, location, author_name, cover_image_url, tags, status, published_at, created_at, updated_at, show_on_home, menu_section")
       .order("updated_at", { ascending: false });
 
     if (error) {

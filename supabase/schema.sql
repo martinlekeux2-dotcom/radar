@@ -22,6 +22,10 @@ create table if not exists public.articles (
 
 alter table public.articles
   add column if not exists location text;
+alter table public.articles
+  add column if not exists show_on_home boolean not null default true;
+alter table public.articles
+  add column if not exists menu_section text;
 
 create table if not exists public.videos (
   id uuid primary key default gen_random_uuid(),
@@ -32,6 +36,7 @@ create table if not exists public.videos (
   thumbnail_url text,
   duration_seconds integer check (duration_seconds is null or duration_seconds > 0),
   category text,
+  featured_position smallint check (featured_position is null or featured_position between 1 and 3),
   status text not null default 'draft'
     check (status in ('draft', 'published', 'archived')),
   published_at timestamptz,
@@ -40,6 +45,10 @@ create table if not exists public.videos (
   constraint videos_published_at_required
     check (status <> 'published' or published_at is not null)
 );
+
+alter table public.videos
+  add column if not exists featured_position smallint
+    check (featured_position is null or featured_position between 1 and 3);
 
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
@@ -59,6 +68,20 @@ create table if not exists public.events (
   updated_at timestamptz not null default now(),
   constraint events_end_after_start
     check (ends_at is null or ends_at >= starts_at)
+);
+
+create table if not exists public.quick_infos (
+  id uuid primary key default gen_random_uuid(),
+  category text not null,
+  icon text not null default 'lightbulb'
+    check (icon in ('lightbulb', 'leaf', 'location', 'energy')),
+  title text not null,
+  copy text not null,
+  position integer not null default 0,
+  status text not null default 'draft'
+    check (status in ('draft', 'published', 'archived')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.admin_users (
@@ -90,11 +113,23 @@ create index if not exists articles_published_at_idx
   where status = 'published';
 create index if not exists articles_category_idx
   on public.articles (category);
+create index if not exists articles_menu_section_published_at_idx
+  on public.articles (menu_section, published_at desc)
+  where status = 'published' and menu_section is not null;
+create index if not exists articles_home_published_at_idx
+  on public.articles (published_at desc)
+  where status = 'published' and show_on_home;
 create index if not exists videos_published_at_idx
   on public.videos (published_at desc)
   where status = 'published';
+create unique index if not exists videos_featured_position_idx
+  on public.videos (featured_position)
+  where featured_position is not null and status = 'published';
 create index if not exists events_starts_at_idx
   on public.events (starts_at)
+  where status = 'published';
+create index if not exists quick_infos_position_idx
+  on public.quick_infos (position, created_at desc)
   where status = 'published';
 create index if not exists comments_status_created_at_idx
   on public.comments (status, created_at desc);
@@ -104,6 +139,7 @@ create index if not exists comments_article_id_idx
 alter table public.articles enable row level security;
 alter table public.videos enable row level security;
 alter table public.events enable row level security;
+alter table public.quick_infos enable row level security;
 alter table public.admin_users enable row level security;
 alter table public.admin_notes enable row level security;
 alter table public.comments enable row level security;
@@ -127,3 +163,21 @@ drop policy if exists "Public can read upcoming published events" on public.even
 create policy "Public can read upcoming published events"
   on public.events for select to anon, authenticated
   using (status = 'published' and starts_at >= now());
+
+drop policy if exists "Public can read published quick infos" on public.quick_infos;
+create policy "Public can read published quick infos"
+  on public.quick_infos for select to anon, authenticated
+  using (status = 'published');
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'radar-media',
+  'radar-media',
+  true,
+  104857600,
+  array['video/mp4', 'video/webm', 'video/quicktime', 'image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;

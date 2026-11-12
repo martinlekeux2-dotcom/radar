@@ -14,16 +14,22 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
+import { mainMenuSections } from "../../src/lib/content-config";
 
-const sections = [
-  { label: "Région", href: "/rubriques/region", Icon: Building2 },
-  { label: "Monde", href: "/rubriques/monde", Icon: Compass },
-  { label: "Politique", href: "/rubriques/politique", Icon: Landmark },
-  { label: "Sport", href: "/rubriques/sport", Icon: Trophy },
-  { label: "Société", href: "/rubriques/societe", Icon: Users },
-  { label: "Culture", href: "/rubriques/culture", Icon: Clapperboard },
-  { label: "Éco/Conso", href: "/rubriques/eco-conso", Icon: ShoppingBasket },
-];
+const sectionIcons = {
+  region: Building2,
+  monde: Compass,
+  politique: Landmark,
+  sport: Trophy,
+  societe: Users,
+  culture: Clapperboard,
+  "eco-conso": ShoppingBasket,
+};
+const sections = mainMenuSections.map((section) => ({
+  ...section,
+  href: `/rubriques/${section.slug}`,
+  Icon: sectionIcons[section.slug],
+}));
 
 export default function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);

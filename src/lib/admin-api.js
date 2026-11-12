@@ -52,7 +52,11 @@ export async function withAdmin(request, handler, { adminOnly = false } = {}) {
 
 export async function readJson(request) {
   try {
-    return { data: await request.json() };
+    const data = await request.json();
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return { error: jsonError("Le corps de la requête doit être un objet JSON.", 400) };
+    }
+    return { data };
   } catch {
     return { error: jsonError("Le corps de la requête doit être un JSON valide.", 400) };
   }

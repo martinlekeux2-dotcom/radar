@@ -38,7 +38,11 @@ export default function QuickInfoStack({ items }) {
         </span>
       </div>
       <div className="quick-info-stack" aria-live="polite">
-        {remainingItems.length ? (
+        {!items.length ? (
+          <div className="quick-info-empty">
+            <p>Aucune info rapide pour le moment.</p>
+          </div>
+        ) : remainingItems.length ? (
           <>
             {remainingItems.slice(1, 3).reverse().map((item, index) => (
               <div

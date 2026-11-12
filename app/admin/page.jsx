@@ -2,21 +2,28 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowLeft,
   BarChart3,
+  Bold,
+  CalendarDays,
   Check,
   ChevronRight,
+  Clapperboard,
   FileText,
+  Heading2,
+  Italic,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
+  Lightbulb,
   Mail,
   MessageSquare,
   NotebookPen,
   Plus,
+  Quote,
   Rss,
   Save,
   Shield,
@@ -28,10 +35,14 @@ import {
 } from "lucide-react";
 import { getSupabaseClient } from "../../src/lib/supabase";
 import { actuCategories, actuRegions } from "../../src/lib/actu-rss-config";
+import { mainMenuSections, quickInfoIcons, slugifyContent } from "../../src/lib/content-config";
 
 const navigation = [
   { id: "overview", label: "Vue d’ensemble", Icon: LayoutDashboard },
   { id: "articles", label: "Articles", Icon: FileText },
+  { id: "videos", label: "Vidéos", Icon: Clapperboard },
+  { id: "events", label: "Événements", Icon: CalendarDays },
+  { id: "quickInfos", label: "Infos rapides", Icon: Lightbulb },
   { id: "rss", label: "Flux RSS", Icon: Rss },
   { id: "notes", label: "Bloc-notes", Icon: NotebookPen },
   { id: "comments", label: "Commentaires", Icon: MessageSquare },
@@ -59,6 +70,9 @@ const emptyArticle = {
   excerpt: "",
   content: "",
   location: "",
+  cover_image_url: "",
+  show_on_home: true,
+  menu_section: "",
   status: "draft",
 };
 
@@ -98,6 +112,20 @@ async function adminRequest(path, { method = "GET", body } = {}) {
     throw new Error("Le serveur a renvoyé une réponse JSON inattendue.");
   }
   return result;
+}
+
+async function uploadMedia(file, kind) {
+  const signedUpload = await adminRequest("media", {
+    method: "POST",
+    body: { kind, mimeType: file.type, size: file.size },
+  });
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.storage
+    .from(signedUpload.bucket)
+    .uploadToSignedUrl(signedUpload.path, signedUpload.token, file, { contentType: file.type });
+
+  if (error) throw new Error(`Impossible d’envoyer le fichier : ${error.message}`);
+  return supabase.storage.from(signedUpload.bucket).getPublicUrl(signedUpload.path).data.publicUrl;
 }
 
 function formatDate(value) {
@@ -159,7 +187,7 @@ function AdminLogin({ supabase, configError }) {
     try {
       if (!supabase) throw new Error("Configurez Supabase avant de réinitialiser votre mot de passe.");
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/admin`,
+        redirectTo: `${window.location.origin}/admin/reset-password`,
       });
       if (resetError) throw resetError;
       setNotice("Si cette adresse possède un compte, un lien de réinitialisation lui sera envoyé.");
@@ -237,12 +265,17 @@ function ArticleTable({ articles, compact = false, onEdit, onDelete }) {
   return (
     <div className="admin-table-wrap">
       <table className="admin-table">
-        <thead><tr><th>Titre</th><th>Rubrique</th><th>Statut</th><th>Modifié le</th>{!compact && <th>Actions</th>}</tr></thead>
+        <thead><tr><th>Titre</th><th>Rubrique</th><th>Emplacements</th><th>Statut</th><th>Modifié le</th>{!compact && <th>Actions</th>}</tr></thead>
         <tbody>
           {articles.map((article, index) => (
             <tr key={`${article.id || article.slug || article.title || "article"}-${index}`}>
               <td><strong>{article.title}</strong><span className="admin-table-subtitle">/{article.slug}</span></td>
               <td>{article.category}{article.location && <span className="admin-table-subtitle">{article.location}</span>}</td>
+              <td>
+                {article.show_on_home && <span className="admin-table-subtitle">Accueil</span>}
+                {article.menu_section && <span className="admin-table-subtitle">{mainMenuSections.find((section) => section.slug === article.menu_section)?.label ?? article.menu_section}</span>}
+                {!article.show_on_home && !article.menu_section && "—"}
+              </td>
               <td><StatusBadge status={article.status}>{articleStatusLabels[article.status] ?? article.status}</StatusBadge></td>
               <td>{formatDate(article.updated_at)}</td>
               {!compact && (
@@ -261,11 +294,47 @@ function ArticleTable({ articles, compact = false, onEdit, onDelete }) {
   );
 }
 
-function ArticleEditor({ article, onClose, onSave, busy }) {
+function MediaUploadControl({ kind, onUploaded, onUploadingChange }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setError("");
+    setUploading(true);
+    onUploadingChange?.(true);
+    try {
+      onUploaded(await uploadMedia(file, kind));
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Impossible d’envoyer le fichier.");
+    } finally {
+      setUploading(false);
+      onUploadingChange?.(false);
+      event.target.value = "";
+    }
+  }
+
+  return (
+    <div className="admin-upload-control">
+      <label>
+        Importer {kind === "video" ? "une vidéo (100 Mo max)" : "une image (8 Mo max)"}
+        <input accept={kind === "video" ? "video/mp4,video/webm,video/quicktime" : "image/jpeg,image/png,image/webp"} disabled={uploading} onChange={handleUpload} type="file" />
+      </label>
+      {uploading && <span className="admin-muted">Envoi en cours…</span>}
+      {error && <span className="admin-alert" role="alert">{error}</span>}
+    </div>
+  );
+}
+
+function ArticleEditor({ article, onClose, onSave, busy, error }) {
   const [form, setForm] = useState(article);
   const [slugTouched, setSlugTouched] = useState(Boolean(article.id));
   const [summaryBusy, setSummaryBusy] = useState(false);
   const [summaryError, setSummaryError] = useState("");
+  const [uploadCount, setUploadCount] = useState(0);
+  const contentRef = useRef(null);
+  const onUploadingChange = (isUploading) => setUploadCount((count) => count + (isUploading ? 1 : -1));
 
   function updateField(event) {
     const { name, value } = event.target;
@@ -299,6 +368,21 @@ function ArticleEditor({ article, onClose, onSave, busy }) {
     }
   }
 
+  function insertFormatting(prefix, suffix = prefix) {
+    const textarea = contentRef.current;
+    if (!textarea) return;
+
+    const { selectionStart, selectionEnd } = textarea;
+    const selected = form.content.slice(selectionStart, selectionEnd) || "texte";
+    const replacement = `${prefix}${selected}${suffix}`;
+    const content = `${form.content.slice(0, selectionStart)}${replacement}${form.content.slice(selectionEnd)}`;
+    setForm((current) => ({ ...current, content }));
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(selectionStart + prefix.length, selectionStart + prefix.length + selected.length);
+    });
+  }
+
   return (
     <div className="admin-modal-backdrop" role="presentation">
       <form className="admin-editor-modal" onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
@@ -311,10 +395,23 @@ function ArticleEditor({ article, onClose, onSave, busy }) {
           <label>Slug<input name="slug" onChange={(event) => { setSlugTouched(true); updateField(event); }} required value={form.slug} /></label>
           <label>Rubrique<input name="category" onChange={updateField} required value={form.category} /></label>
           <label>Lieu<input name="location" onChange={updateField} value={form.location ?? ""} /></label>
+          <label className="admin-form-wide">Image de couverture (URL)<input name="cover_image_url" onChange={updateField} value={form.cover_image_url ?? ""} /></label>
+          <div className="admin-form-wide"><MediaUploadControl kind="image" onUploaded={(url) => setForm((current) => ({ ...current, cover_image_url: url }))} onUploadingChange={onUploadingChange} /></div>
           <label>Statut
             <select name="status" onChange={updateField} value={form.status}>
               <option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option>
             </select>
+          </label>
+          <label>
+            Rubrique du menu principal
+            <select name="menu_section" onChange={updateField} value={form.menu_section ?? ""}>
+              <option value="">Ne pas afficher dans le menu</option>
+              {mainMenuSections.map((section) => <option key={section.slug} value={section.slug}>{section.label}</option>)}
+            </select>
+          </label>
+          <label className="admin-toggle-field">
+            <input checked={form.show_on_home ?? true} name="show_on_home" onChange={(event) => setForm((current) => ({ ...current, show_on_home: event.target.checked }))} type="checkbox" />
+            Afficher aussi sur la page d’accueil
           </label>
           <div className="admin-form-wide admin-excerpt-field">
             <label htmlFor="article-excerpt">Chapeau</label>
@@ -333,14 +430,236 @@ function ArticleEditor({ article, onClose, onSave, busy }) {
             </div>
             {summaryError && <p className="admin-alert admin-summary-error" role="alert">{summaryError}</p>}
           </div>
-          <label className="admin-form-wide">Corps de l’article (Markdown)<textarea className="admin-content-field" name="content" onChange={updateField} rows={10} value={form.content ?? ""} /></label>
+          <div className="admin-form-wide admin-article-content">
+            <label htmlFor="article-content">Corps de l’article</label>
+            <div className="admin-format-toolbar" aria-label="Mise en forme du texte">
+              <button aria-label="Gras" onClick={() => insertFormatting("**")} type="button"><Bold size={16} /></button>
+              <button aria-label="Italique" onClick={() => insertFormatting("*")} type="button"><Italic size={16} /></button>
+              <button onClick={() => insertFormatting("\n## ", "\n")} type="button"><Heading2 size={16} /> Intertitre</button>
+              <button onClick={() => insertFormatting("\n> ", "\n")} type="button"><Quote size={16} /> Exergue</button>
+            </div>
+            <textarea className="admin-content-field" id="article-content" name="content" onChange={updateField} ref={contentRef} rows={10} value={form.content ?? ""} />
+            <p className="admin-muted">Les boutons ajoutent une mise en forme Markdown, affichée automatiquement dans l’article publié.</p>
+          </div>
         </div>
+        {error && <p className="admin-alert" role="alert">{error}</p>}
         <div className="admin-modal-actions">
           <button className="admin-secondary-button" onClick={onClose} type="button">Annuler</button>
-          <button className="admin-primary-button" disabled={busy} type="submit"><Save size={16} />{busy ? "Enregistrement…" : "Enregistrer"}</button>
+          <button className="admin-primary-button" disabled={busy || uploadCount > 0} type="submit"><Save size={16} />{busy ? "Enregistrement…" : "Enregistrer"}</button>
         </div>
       </form>
     </div>
+  );
+}
+
+function emptyContentItem(kind) {
+  if (kind === "video") {
+    return {
+      title: "",
+      slug: "",
+      description: "",
+      video_url: "",
+      thumbnail_url: "",
+      duration_seconds: "",
+      category: "",
+      featured_position: "",
+      status: "draft",
+    };
+  }
+  if (kind === "event") {
+    return {
+      title: "",
+      slug: "",
+      description: "",
+      category: "",
+      venue: "",
+      city: "",
+      starts_at: "",
+      ends_at: "",
+      ticket_url: "",
+      image_url: "",
+      status: "draft",
+    };
+  }
+  return { category: "", icon: "lightbulb", title: "", copy: "", position: 0, status: "draft" };
+}
+
+function localDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function ContentEditor({ kind, item, onClose, onSave, busy, error }) {
+  const [form, setForm] = useState(() => ({
+    ...emptyContentItem(kind),
+    ...(item ?? {}),
+    ...(kind === "event" && item
+      ? { starts_at: localDateTime(item.starts_at), ends_at: localDateTime(item.ends_at) }
+      : {}),
+  }));
+  const [slugTouched, setSlugTouched] = useState(Boolean(item?.id));
+  const [uploadCount, setUploadCount] = useState(0);
+  const onUploadingChange = (isUploading) => setUploadCount((count) => count + (isUploading ? 1 : -1));
+
+  function updateField(event) {
+    const { name, value } = event.target;
+    setForm((current) => {
+      const updated = { ...current, [name]: value };
+      if (name === "title" && !slugTouched) updated.slug = slugifyContent(value);
+      return updated;
+    });
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    const values = { ...form };
+    if (kind === "event") {
+      values.starts_at = new Date(form.starts_at).toISOString();
+      values.ends_at = form.ends_at ? new Date(form.ends_at).toISOString() : null;
+    }
+    if (await onSave(kind, values)) onClose();
+  }
+
+  const isVideo = kind === "video";
+  const isEvent = kind === "event";
+  const title = isVideo ? "vidéo" : isEvent ? "événement" : "info rapide";
+
+  return (
+    <div className="admin-modal-backdrop" role="presentation">
+      <form className="admin-editor-modal" onSubmit={submit}>
+        <div className="admin-panel-heading">
+          <div><p className="admin-eyebrow">{item?.id ? "Modification" : "Création"}</p><h2>{item?.id ? `Modifier ${title}` : `Ajouter ${title}`}</h2></div>
+          <button aria-label="Fermer" className="admin-icon-button" onClick={onClose} type="button"><X size={19} /></button>
+        </div>
+        <div className="admin-form-grid">
+          {isEvent || isVideo ? (
+            <>
+              <label className="admin-form-wide">Titre<input name="title" onChange={updateField} required value={form.title} /></label>
+              <label>Slug<input name="slug" onChange={(event) => { setSlugTouched(true); updateField(event); }} required value={form.slug} /></label>
+            </>
+          ) : (
+            <>
+              <label>Catégorie<input name="category" onChange={updateField} required value={form.category} /></label>
+              <label>Icône
+                <select name="icon" onChange={updateField} value={form.icon}>
+                  {quickInfoIcons.map((icon) => <option key={icon.value} value={icon.value}>{icon.label}</option>)}
+                </select>
+              </label>
+              <label className="admin-form-wide">Titre<input name="title" onChange={updateField} required value={form.title} /></label>
+              <label className="admin-form-wide">Texte<textarea name="copy" onChange={updateField} required rows={3} value={form.copy} /></label>
+              <label>Ordre d’affichage<input min={0} name="position" onChange={updateField} required type="number" value={form.position} /></label>
+              <label>Statut
+                <select name="status" onChange={updateField} value={form.status}>
+                  <option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option>
+                </select>
+              </label>
+            </>
+          )}
+          {isVideo && (
+            <>
+              <label>Catégorie<input name="category" onChange={updateField} value={form.category ?? ""} /></label>
+              <label>Durée (secondes)<input min={1} name="duration_seconds" onChange={updateField} type="number" value={form.duration_seconds ?? ""} /></label>
+              <label className="admin-form-wide">Vidéo (URL)<input name="video_url" onChange={updateField} required type="url" value={form.video_url ?? ""} /></label>
+              <div className="admin-form-wide"><MediaUploadControl kind="video" onUploaded={(url) => setForm((current) => ({ ...current, video_url: url }))} onUploadingChange={onUploadingChange} /></div>
+              <label className="admin-form-wide">Image miniature (URL)<input name="thumbnail_url" onChange={updateField} type="url" value={form.thumbnail_url ?? ""} /></label>
+              <div className="admin-form-wide"><MediaUploadControl kind="image" onUploaded={(url) => setForm((current) => ({ ...current, thumbnail_url: url }))} onUploadingChange={onUploadingChange} /></div>
+              <label className="admin-form-wide">Description<textarea name="description" onChange={updateField} rows={2} value={form.description ?? ""} /></label>
+              <label>Position parmi les trois vidéos mises en avant
+                <select name="featured_position" onChange={updateField} value={form.featured_position ?? ""}>
+                  <option value="">Aucune</option><option value="1">1 — Vidéo du moment</option><option value="2">2 — Deuxième</option><option value="3">3 — Troisième</option>
+                </select>
+              </label>
+              <label>Statut
+                <select name="status" onChange={updateField} value={form.status}>
+                  <option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option>
+                </select>
+              </label>
+            </>
+          )}
+          {isEvent && (
+            <>
+              <label>Catégorie<input name="category" onChange={updateField} value={form.category ?? ""} /></label>
+              <label>Début<input name="starts_at" onChange={updateField} required type="datetime-local" value={form.starts_at ?? ""} /></label>
+              <label>Fin<input name="ends_at" onChange={updateField} type="datetime-local" value={form.ends_at ?? ""} /></label>
+              <label>Lieu<input name="venue" onChange={updateField} value={form.venue ?? ""} /></label>
+              <label>Ville<input name="city" onChange={updateField} value={form.city ?? ""} /></label>
+              <label className="admin-form-wide">Lien billetterie<input name="ticket_url" onChange={updateField} type="url" value={form.ticket_url ?? ""} /></label>
+              <label className="admin-form-wide">Image (URL)<input name="image_url" onChange={updateField} type="url" value={form.image_url ?? ""} /></label>
+              <div className="admin-form-wide"><MediaUploadControl kind="image" onUploaded={(url) => setForm((current) => ({ ...current, image_url: url }))} onUploadingChange={onUploadingChange} /></div>
+              <label className="admin-form-wide">Description<textarea name="description" onChange={updateField} rows={2} value={form.description ?? ""} /></label>
+              <label>Statut
+                <select name="status" onChange={updateField} value={form.status}>
+                  <option value="draft">Brouillon</option><option value="published">Publié</option><option value="cancelled">Annulé</option>
+                </select>
+              </label>
+            </>
+          )}
+        </div>
+        {error && <p className="admin-alert" role="alert">{error}</p>}
+        <div className="admin-modal-actions">
+          <button className="admin-secondary-button" onClick={onClose} type="button">Annuler</button>
+          <button className="admin-primary-button" disabled={busy || uploadCount > 0} type="submit"><Save size={16} />{busy ? "Enregistrement…" : "Enregistrer"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function ContentManagerView({ kind, items, onSave, onDelete, busy, error }) {
+  const [editor, setEditor] = useState(null);
+  const isVideo = kind === "video";
+  const isEvent = kind === "event";
+  const label = isVideo ? "vidéo" : isEvent ? "événement" : "info rapide";
+  const pluralLabel = isVideo ? "Vidéos" : isEvent ? "Événements" : "Infos rapides";
+
+  return (
+    <>
+      <section className="admin-panel">
+        <div className="admin-panel-heading">
+          <div><p className="admin-eyebrow">Publication</p><h2>Gérer {pluralLabel.toLocaleLowerCase("fr")}</h2></div>
+          <button className="admin-primary-button" onClick={() => setEditor(emptyContentItem(kind))} type="button"><Plus size={16} /> Ajouter</button>
+        </div>
+        <p className="admin-muted">
+          {isVideo
+            ? "Importez une vidéo MP4, WebM ou MOV (100 Mo maximum), puis choisissez jusqu’à trois positions de mise en avant."
+            : isEvent
+              ? "Les événements publiés à venir apparaissent dans les bulles de la page d’accueil."
+              : "Les infos rapides publiées apparaissent dans la pile de cartes de la page d’accueil."}
+        </p>
+        {!items.length ? <p className="admin-empty">Aucun contenu enregistré.</p> : (
+          <div className="admin-table-wrap"><table className="admin-table">
+            <thead><tr><th>Titre</th><th>Détail</th><th>Statut</th><th>Actions</th></tr></thead>
+            <tbody>{items.map((item) => (
+              <tr key={item.id}>
+                <td><strong>{item.title}</strong><span className="admin-table-subtitle">/{item.slug ?? item.id}</span></td>
+                <td>{isVideo
+                  ? item.featured_position ? `Mise en avant ${item.featured_position}/3` : item.category || "Non classée"
+                  : isEvent
+                    ? `${formatDate(item.starts_at)} · ${[item.venue, item.city].filter(Boolean).join(", ")}`
+                    : `${item.category} · position ${item.position}`}</td>
+                <td><StatusBadge status={item.status}>{item.status === "published" ? "Publié" : item.status === "cancelled" ? "Annulé" : articleStatusLabels[item.status] ?? item.status}</StatusBadge></td>
+                <td><div className="admin-row-actions">
+                  <button aria-label={`Modifier ${label} ${item.title}`} onClick={() => setEditor(item)} type="button"><FileText size={16} /></button>
+                  <button aria-label={`Supprimer ${label} ${item.title}`} className="admin-danger-icon" onClick={() => onDelete(kind, item)} type="button"><Trash2 size={16} /></button>
+                </div></td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      </section>
+      {editor && (
+        <ContentEditor
+          busy={busy}
+          item={editor.id ? editor : null}
+          kind={kind}
+          onClose={() => setEditor(null)}
+          onSave={onSave}
+          error={error}
+        />
+      )}
+    </>
   );
 }
 
@@ -653,7 +972,7 @@ function RssView({
 function AdminWorkspace({ session, supabase }) {
   const [section, setSection] = useState("overview");
   const [profile, setProfile] = useState(null);
-  const [data, setData] = useState(null);
+  const [loadedData, setLoadedData] = useState({ key: null, value: null });
   const [busy, setBusy] = useState(false);
   const [loadingSection, setLoadingSection] = useState(true);
   const [error, setError] = useState("");
@@ -667,6 +986,16 @@ function AdminWorkspace({ session, supabase }) {
   const visibleNavigation = navigation.filter((item) => !item.adminOnly || canManageAccounts);
   const rssQueryCategory = section === "rss" ? rssCategory : "";
   const rssQueryRegion = section === "rss" ? rssRegion : "";
+  const endpoint = section === "statistics"
+    ? "overview"
+    : section === "quickInfos"
+      ? "quick-infos"
+      : section;
+  const requestPath = section === "rss"
+    ? `rss?category=${encodeURIComponent(rssQueryCategory)}&region=${encodeURIComponent(rssQueryRegion)}`
+    : endpoint;
+  const dataKey = `${section}:${requestPath}`;
+  const data = loadedData.key === dataKey ? loadedData.value : null;
 
   useEffect(() => {
     let active = true;
@@ -681,7 +1010,7 @@ function AdminWorkspace({ session, supabase }) {
     setLoadingSection(true);
     setError("");
     setNotice("");
-    setData(null);
+    setLoadedData({ key: null, value: null });
     if (section === "profile") {
       adminRequest("profile")
         .then((result) => { if (active) setProfile(result); })
@@ -690,19 +1019,24 @@ function AdminWorkspace({ session, supabase }) {
       return () => { active = false; };
     }
 
-    const endpoint = section === "statistics" ? "overview" : section;
-    const requestPath = section === "rss"
-      ? `rss?category=${encodeURIComponent(rssQueryCategory)}&region=${encodeURIComponent(rssQueryRegion)}`
-      : endpoint;
     adminRequest(requestPath)
       .then((result) => {
         if (!active) return;
-        if (section === "overview" || section === "statistics") setData(result);
-        else if (section === "articles") setData(result.articles);
-        else if (section === "notes") setData(result.note);
-        else if (section === "comments") setData(result.comments);
-        else if (section === "accounts") setData(result.accounts);
-        else if (section === "rss") setData(result.items);
+        let value;
+        if (section === "overview" || section === "statistics") value = result;
+        else if (section === "articles") value = result.articles;
+        else if (section === "notes") value = result.note;
+        else if (section === "comments") value = result.comments;
+        else if (section === "accounts") {
+          if (!Array.isArray(result.accounts)) {
+            throw new Error("La réponse du serveur pour les comptes est invalide.");
+          }
+          value = result.accounts;
+        } else if (section === "videos") value = result.videos;
+        else if (section === "events") value = result.events;
+        else if (section === "quickInfos") value = result.quickInfos;
+        else if (section === "rss") value = result.items;
+        setLoadedData({ key: dataKey, value });
       })
       .catch((requestError) => { if (active) setError(requestError.message); })
       .finally(() => { if (active) setLoadingSection(false); });
@@ -737,10 +1071,28 @@ function AdminWorkspace({ session, supabase }) {
     if (saved) setEditor(null);
   }
 
+  async function saveContent(kind, values) {
+    const path = kind === "video" ? "videos" : kind === "event" ? "events" : "quick-infos";
+    return runAction(
+      () => adminRequest(path, { method: values.id ? "PATCH" : "POST", body: values }),
+      `${kind === "video" ? "Vidéo" : kind === "event" ? "Événement" : "Info rapide"} enregistré${kind === "event" ? "" : "e"}.`,
+    );
+  }
+
+  async function deleteContent(kind, item) {
+    const label = kind === "video" ? "cette vidéo" : kind === "event" ? "cet événement" : "cette info rapide";
+    if (!window.confirm(`Supprimer définitivement ${label} « ${item.title} » ?`)) return;
+    const path = kind === "video" ? "videos" : kind === "event" ? "events" : "quick-infos";
+    await runAction(
+      () => adminRequest(path, { method: "DELETE", body: { id: item.id } }),
+      "Contenu supprimé.",
+    );
+  }
+
   async function saveNote(content) {
     await runAction(async () => {
       const result = await adminRequest("notes", { method: "PUT", body: { content } });
-      setData(result.note);
+      setLoadedData({ key: dataKey, value: result.note });
     }, "Bloc-notes enregistré.", { refresh: false });
   }
 
@@ -838,7 +1190,8 @@ function AdminWorkspace({ session, supabase }) {
         <div className="admin-content">
           {error && <p className="admin-alert" role="alert">{error}</p>}
           {notice && <p className="admin-notice" role="status">{notice}</p>}
-          {loadingSection ? <div className="admin-loading"><LoaderCircle className="admin-spinner" size={22} /> Chargement…</div> : (
+          {loadingSection || (!error && loadedData.key !== dataKey)
+            ? <div className="admin-loading"><LoaderCircle className="admin-spinner" size={22} /> Chargement…</div> : (
             <>
               {section === "overview" && <OverviewView data={data} onNavigate={setSection} />}
               {section === "articles" && (
@@ -847,6 +1200,9 @@ function AdminWorkspace({ session, supabase }) {
                   <ArticleTable articles={data ?? []} onEdit={(article) => setEditor({ ...article })} onDelete={deleteArticle} />
                 </section>
               )}
+              {section === "videos" && <ContentManagerView busy={busy} error={error} items={data ?? []} kind="video" onDelete={deleteContent} onSave={saveContent} />}
+              {section === "events" && <ContentManagerView busy={busy} error={error} items={data ?? []} kind="event" onDelete={deleteContent} onSave={saveContent} />}
+              {section === "quickInfos" && <ContentManagerView busy={busy} error={error} items={data ?? []} kind="quickInfo" onDelete={deleteContent} onSave={saveContent} />}
               {section === "rss" && (
                 <RssView
                   items={data ?? []}
@@ -869,7 +1225,7 @@ function AdminWorkspace({ session, supabase }) {
           )}
         </div>
       </main>
-      {editor && <ArticleEditor article={editor} busy={busy} onClose={() => setEditor(null)} onSave={saveArticle} />}
+      {editor && <ArticleEditor article={editor} busy={busy} error={error} onClose={() => setEditor(null)} onSave={saveArticle} />}
     </div>
   );
 }

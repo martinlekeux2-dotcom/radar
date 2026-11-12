@@ -1,0 +1,92 @@
+import { createClient } from "@supabase/supabase-js";
+
+let supabase;
+
+function getPublicClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) return null;
+
+  if (!supabase) {
+    supabase = createClient(url, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
+  return supabase;
+}
+
+async function readRows(query, label) {
+  const { data, error } = await query;
+  if (error) throw new Error(`Impossible de charger ${label} : ${error.message}`);
+  return data ?? [];
+}
+
+export async function getPublishedArticles({ homeOnly = false, menuSection = null } = {}) {
+  const client = getPublicClient();
+  if (!client) return null;
+
+  let query = client
+    .from("articles")
+    .select("id, title, slug, excerpt, content, category, location, author_name, cover_image_url, tags, status, published_at, show_on_home, menu_section")
+    .eq("status", "published")
+    .order("published_at", { ascending: false });
+
+  if (homeOnly) query = query.eq("show_on_home", true);
+  if (menuSection) query = query.eq("menu_section", menuSection);
+  return readRows(query, "les articles");
+}
+
+export async function getPublishedVideos() {
+  const client = getPublicClient();
+  if (!client) return null;
+
+  const query = client
+    .from("videos")
+    .select("id, title, slug, description, video_url, thumbnail_url, duration_seconds, category, featured_position, published_at")
+    .eq("status", "published")
+    .order("featured_position", { ascending: true, nullsFirst: false })
+    .order("published_at", { ascending: false });
+  return readRows(query, "les vidéos");
+}
+
+export async function getPublishedEvents() {
+  const client = getPublicClient();
+  if (!client) return null;
+
+  const query = client
+    .from("events")
+    .select("id, title, slug, description, category, venue, city, starts_at, ends_at, ticket_url, image_url")
+    .eq("status", "published")
+    .gte("starts_at", new Date().toISOString())
+    .order("starts_at", { ascending: true })
+    .limit(3);
+  return readRows(query, "les événements");
+}
+
+export async function getPublishedQuickInfos() {
+  const client = getPublicClient();
+  if (!client) return null;
+
+  const query = client
+    .from("quick_infos")
+    .select("id, category, icon, title, copy, position")
+    .eq("status", "published")
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: false });
+  return readRows(query, "les infos rapides");
+}
+
+export async function getPublishedArticle(slug) {
+  const client = getPublicClient();
+  if (!client) return null;
+
+  const { data, error } = await client
+    .from("articles")
+    .select("id, title, slug, excerpt, content, category, location, author_name, cover_image_url, published_at")
+    .eq("status", "published")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) throw new Error(`Impossible de charger l’article : ${error.message}`);
+  return data;
+}
