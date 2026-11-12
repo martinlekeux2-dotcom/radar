@@ -174,7 +174,7 @@ values (
   'radar-media',
   'radar-media',
   true,
-  104857600,
+  1073741824,
   array['video/mp4', 'video/webm', 'video/quicktime', 'image/jpeg', 'image/png', 'image/webp']
 )
 on conflict (id) do update

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readJson, withAdmin } from "../../../../src/lib/admin-api";
 
 const bucket = "radar-media";
-const maximumVideoSize = 100 * 1024 * 1024;
+const maximumVideoSize = 1024 * 1024 * 1024;
 const maximumImageSize = 8 * 1024 * 1024;
 const mediaTypes = {
   video: {
@@ -26,7 +26,11 @@ export async function POST(request) {
     const extension = mediaTypes[kind]?.[mimeType];
     const maximumSize = kind === "video" ? maximumVideoSize : maximumImageSize;
     if (!extension || !Number.isInteger(size) || size <= 0 || size > maximumSize) {
-      return Response.json({ error: "Format ou taille de fichier non autorisé." }, { status: 400 });
+      return Response.json({
+        error: kind === "video"
+          ? "Format vidéo non autorisé ou fichier supérieur à 1 Go."
+          : "Format d’image non autorisé ou fichier supérieur à 8 Mo.",
+      }, { status: 400 });
     }
 
     const path = `${kind}/${randomUUID()}.${extension}`;

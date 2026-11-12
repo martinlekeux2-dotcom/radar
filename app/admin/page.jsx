@@ -36,6 +36,7 @@ import {
 import { getSupabaseClient } from "../../src/lib/supabase";
 import { actuCategories, actuRegions } from "../../src/lib/actu-rss-config";
 import { mainMenuSections, quickInfoIcons, slugifyContent } from "../../src/lib/content-config";
+import { Upload } from "tus-js-client";
 
 const navigation = [
   { id: "overview", label: "Vue d’ensemble", Icon: LayoutDashboard },
@@ -114,17 +115,43 @@ async function adminRequest(path, { method = "GET", body } = {}) {
   return result;
 }
 
-async function uploadMedia(file, kind) {
+async function uploadMedia(file, kind, onProgress) {
   const signedUpload = await adminRequest("media", {
     method: "POST",
     body: { kind, mimeType: file.type, size: file.size },
   });
-  const supabase = getSupabaseClient();
-  const { error } = await supabase.storage
-    .from(signedUpload.bucket)
-    .uploadToSignedUrl(signedUpload.path, signedUpload.token, file, { contentType: file.type });
 
-  if (error) throw new Error(`Impossible d’envoyer le fichier : ${error.message}`);
+  const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!projectUrl) throw new Error("Supabase n’est pas complètement configuré.");
+  const supabaseUrl = new URL(projectUrl);
+  if (supabaseUrl.hostname.endsWith(".supabase.co") && !supabaseUrl.hostname.endsWith(".storage.supabase.co")) {
+    supabaseUrl.hostname = supabaseUrl.hostname.replace(/\.supabase\.co$/, ".storage.supabase.co");
+  }
+  const endpoint = `${supabaseUrl.origin}/storage/v1/upload/resumable`;
+
+  await new Promise((resolve, reject) => {
+    const upload = new Upload(file, {
+      endpoint,
+      headers: { "x-signature": signedUpload.token },
+      metadata: {
+        bucketName: signedUpload.bucket,
+        objectName: signedUpload.path,
+        contentType: file.type,
+      },
+      chunkSize: 6 * 1024 * 1024,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      onProgress(bytesUploaded, bytesTotal) {
+        onProgress(Math.round((bytesUploaded / bytesTotal) * 100));
+      },
+      onError: reject,
+      onSuccess: resolve,
+    });
+    upload.start();
+  });
+
+  const supabase = getSupabaseClient();
   return supabase.storage.from(signedUpload.bucket).getPublicUrl(signedUpload.path).data.publicUrl;
 }
 
@@ -296,6 +323,7 @@ function ArticleTable({ articles, compact = false, onEdit, onDelete }) {
 
 function MediaUploadControl({ kind, onUploaded, onUploadingChange }) {
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
 
   async function handleUpload(event) {
@@ -305,11 +333,12 @@ function MediaUploadControl({ kind, onUploaded, onUploadingChange }) {
     setUploading(true);
     onUploadingChange?.(true);
     try {
-      onUploaded(await uploadMedia(file, kind));
+      onUploaded(await uploadMedia(file, kind, setProgress));
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Impossible d’envoyer le fichier.");
     } finally {
       setUploading(false);
+      setProgress(0);
       onUploadingChange?.(false);
       event.target.value = "";
     }
@@ -318,10 +347,10 @@ function MediaUploadControl({ kind, onUploaded, onUploadingChange }) {
   return (
     <div className="admin-upload-control">
       <label>
-        Importer {kind === "video" ? "une vidéo (100 Mo max)" : "une image (8 Mo max)"}
+        Importer {kind === "video" ? "une vidéo (1 Go max)" : "une image (8 Mo max)"}
         <input accept={kind === "video" ? "video/mp4,video/webm,video/quicktime" : "image/jpeg,image/png,image/webp"} disabled={uploading} onChange={handleUpload} type="file" />
       </label>
-      {uploading && <span className="admin-muted">Envoi en cours…</span>}
+      {uploading && <span className="admin-muted">Envoi en cours… {progress} %</span>}
       {error && <span className="admin-alert" role="alert">{error}</span>}
     </div>
   );
@@ -393,7 +422,7 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
         <div className="admin-form-grid">
           <label className="admin-form-wide">Titre<input name="title" onChange={updateField} required value={form.title} /></label>
           <label>Slug<input name="slug" onChange={(event) => { setSlugTouched(true); updateField(event); }} required value={form.slug} /></label>
-          <label>Rubrique<input name="category" onChange={updateField} required value={form.category} /></label>
+          <label>Catégorie affichée<input name="category" onChange={updateField} required value={form.category} /></label>
           <label>Lieu<input name="location" onChange={updateField} value={form.location ?? ""} /></label>
           <label className="admin-form-wide">Image de couverture (URL)<input name="cover_image_url" onChange={updateField} value={form.cover_image_url ?? ""} /></label>
           <div className="admin-form-wide"><MediaUploadControl kind="image" onUploaded={(url) => setForm((current) => ({ ...current, cover_image_url: url }))} onUploadingChange={onUploadingChange} /></div>
@@ -403,15 +432,15 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
             </select>
           </label>
           <label>
-            Rubrique du menu principal
+            Rattacher à une rubrique existante
             <select name="menu_section" onChange={updateField} value={form.menu_section ?? ""}>
-              <option value="">Ne pas afficher dans le menu</option>
+              <option value="">Aucune rubrique</option>
               {mainMenuSections.map((section) => <option key={section.slug} value={section.slug}>{section.label}</option>)}
             </select>
           </label>
           <label className="admin-toggle-field">
             <input checked={form.show_on_home ?? true} name="show_on_home" onChange={(event) => setForm((current) => ({ ...current, show_on_home: event.target.checked }))} type="checkbox" />
-            Afficher aussi sur la page d’accueil
+            Ajouter aussi à la une sur l’accueil
           </label>
           <div className="admin-form-wide admin-excerpt-field">
             <label htmlFor="article-excerpt">Chapeau</label>
@@ -623,7 +652,7 @@ function ContentManagerView({ kind, items, onSave, onDelete, busy, error }) {
         </div>
         <p className="admin-muted">
           {isVideo
-            ? "Importez une vidéo MP4, WebM ou MOV (100 Mo maximum), puis choisissez jusqu’à trois positions de mise en avant."
+            ? "Importez une vidéo MP4, WebM ou MOV (1 Go maximum), puis choisissez jusqu’à trois positions de mise en avant."
             : isEvent
               ? "Les événements publiés à venir apparaissent dans les bulles de la page d’accueil."
               : "Les infos rapides publiées apparaissent dans la pile de cartes de la page d’accueil."}
