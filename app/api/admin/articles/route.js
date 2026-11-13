@@ -6,18 +6,20 @@ const articleStatuses = ["draft", "published", "archived"];
 function validateArticle(body) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const slug = typeof body.slug === "string" ? body.slug.trim() : "";
-  const category = typeof body.category === "string" ? body.category.trim() : "";
   const location = typeof body.location === "string" ? body.location.trim() : "";
   const content = typeof body.content === "string" ? body.content : "";
   const excerpt = typeof body.excerpt === "string" ? body.excerpt.trim() : "";
   const status = body.status;
   const menuSection = typeof body.menu_section === "string" ? body.menu_section.trim() : "";
-  const showOnHome = body.show_on_home === undefined ? true : body.show_on_home;
+  const showOnHome = body.show_on_home === undefined ? false : body.show_on_home;
   const featuredOnHome = body.featured_on_home === undefined ? false : body.featured_on_home;
+  const showAsReportage = body.show_as_reportage === undefined ? false : body.show_as_reportage;
   const coverImageUrl = typeof body.cover_image_url === "string" ? body.cover_image_url.trim() : "";
+  const menuSectionLabel = mainMenuSections.find((section) => section.slug === menuSection)?.label;
+  const category = menuSectionLabel || (typeof body.category === "string" ? body.category.trim() : "") || "Actualité";
 
   if (!title || !category || !slug) {
-    return { error: "Le titre, le slug et la rubrique sont obligatoires." };
+    return { error: "Le titre et le slug de l’article sont obligatoires." };
   }
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
     return { error: "Le slug doit contenir uniquement des lettres minuscules, chiffres et tirets." };
@@ -30,6 +32,9 @@ function validateArticle(body) {
   }
   if (typeof featuredOnHome !== "boolean") {
     return { error: "Le choix de l’article à la une n’est pas valide." };
+  }
+  if (typeof showAsReportage !== "boolean") {
+    return { error: "Le choix d’affichage dans les bulles Reportages n’est pas valide." };
   }
   if (menuSection && !mainMenuSections.some((section) => section.slug === menuSection)) {
     return { error: "La rubrique choisie dans le menu principal n’est pas valide." };
@@ -46,12 +51,14 @@ function validateArticle(body) {
       content,
       excerpt: excerpt || null,
       location: location || null,
-      show_on_home: showOnHome || featuredOnHome,
+      show_on_home: showOnHome,
       featured_on_home: featuredOnHome,
+      show_as_reportage: showAsReportage,
       menu_section: menuSection || null,
       status,
       author_name: typeof body.author_name === "string" ? body.author_name.trim() || null : null,
       cover_image_url: coverImageUrl || null,
+      cover_image_caption: typeof body.cover_image_caption === "string" ? body.cover_image_caption.trim() || null : null,
       tags: Array.isArray(body.tags)
         ? body.tags.filter((tag) => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean)
         : [],
@@ -69,7 +76,7 @@ export async function GET(request) {
   return withAdmin(request, async ({ db }) => {
     const { data, error } = await db
       .from("articles")
-      .select("id, title, slug, excerpt, content, category, location, author_name, cover_image_url, tags, status, published_at, created_at, updated_at, show_on_home, featured_on_home, menu_section")
+      .select("id, title, slug, excerpt, content, category, location, author_name, cover_image_url, cover_image_caption, tags, status, published_at, created_at, updated_at, show_on_home, featured_on_home, show_as_reportage, menu_section")
       .order("updated_at", { ascending: false });
 
     if (error) {
@@ -92,7 +99,7 @@ export async function POST(request) {
     };
     const { data, error } = await db
       .from("articles")
-      .insert({ ...article, author_name: article.author_name ?? user.email })
+      .insert({ ...article, author_name: article.author_name ?? (user.user_metadata?.full_name || user.email) })
       .select("id, title")
       .single();
     if (error) {
@@ -125,7 +132,7 @@ export async function PATCH(request) {
     };
     const { data: existing, error: existingError } = await db
       .from("articles")
-      .select("id")
+      .select("id, featured_on_home")
       .eq("id", body.data.id)
       .maybeSingle();
     if (existingError) {
@@ -143,8 +150,10 @@ export async function PATCH(request) {
       return Response.json({ error: `Impossible de modifier l’article : ${error.message}` }, { status: 400 });
     }
     if (!data) return Response.json({ error: "Cet article n’existe plus." }, { status: 404 });
-    if (validated.article.featured_on_home && validated.article.status === "published") {
-      const { error: featuredError } = await db.rpc("set_home_featured_article", { target_article_id: data.id });
+    if (existing.featured_on_home || (validated.article.featured_on_home && validated.article.status === "published")) {
+      const { error: featuredError } = await db.rpc("set_home_featured_article", {
+        target_article_id: validated.article.featured_on_home && validated.article.status === "published" ? data.id : null,
+      });
       if (featuredError) {
         return Response.json({ error: `L’article a été modifié, mais sa mise à la une a échoué : ${featuredError.message}` }, { status: 500 });
       }

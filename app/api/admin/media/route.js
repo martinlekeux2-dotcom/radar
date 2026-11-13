@@ -47,7 +47,6 @@ export async function POST(request) {
     if (bucketError?.status === 404) {
       const { error: createError } = await storage.createBucket(bucket, {
         public: true,
-        fileSizeLimit: maximumVideoSize,
         allowedMimeTypes,
       });
       if (createError && createError.status !== 409) {
@@ -55,10 +54,41 @@ export async function POST(request) {
           error: `Impossible de préparer le stockage des fichiers : ${createError.message}`,
         }, { status: 500 });
       }
+      if (createError?.status === 409) {
+        const { error: verifyError } = await storage.getBucket(bucket);
+        if (verifyError) {
+          return Response.json({
+            error: `Impossible de vérifier le stockage des fichiers : ${verifyError.message}`,
+          }, { status: 500 });
+        }
+        const { error: updateError } = await storage.updateBucket(bucket, {
+          public: true,
+          allowedMimeTypes,
+        });
+        if (updateError) {
+          return Response.json({
+            error: `Impossible de configurer le stockage des fichiers : ${updateError.message}`,
+          }, { status: 500 });
+        }
+      }
     } else if (bucketError) {
       return Response.json({
         error: `Impossible de vérifier le stockage des fichiers : ${bucketError.message}`,
       }, { status: 500 });
+    } else {
+      const { error: updateError } = await storage.updateBucket(bucket, {
+        public: true,
+        allowedMimeTypes,
+      });
+      if (updateError) {
+        return Response.json({
+          error: `Impossible de configurer le stockage des fichiers : ${updateError.message}`,
+        }, { status: 500 });
+      }
+    }
+
+    if (kind === "video") {
+      return Response.json({ bucket, path });
     }
 
     const { data, error } = await db.storage.from(bucket).createSignedUploadUrl(path);

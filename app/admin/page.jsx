@@ -25,6 +25,7 @@ import {
   NotebookPen,
   Plus,
   Quote,
+  Radio,
   Rss,
   Save,
   Shield,
@@ -46,6 +47,8 @@ const navigation = [
   { id: "videos", label: "Vidéos", Icon: Clapperboard },
   { id: "events", label: "Événements", Icon: CalendarDays },
   { id: "quickInfos", label: "Infos rapides", Icon: Lightbulb },
+  { id: "liveUpdate", label: "En direct", Icon: Radio },
+  { id: "dailyFact", label: "Chiffre du jour", Icon: Sparkles },
   { id: "rss", label: "Flux RSS", Icon: Rss },
   { id: "notes", label: "Bloc-notes", Icon: NotebookPen },
   { id: "comments", label: "Commentaires", Icon: MessageSquare },
@@ -70,12 +73,15 @@ const emptyArticle = {
   title: "",
   slug: "",
   category: "",
+  author_name: "",
   excerpt: "",
   content: "",
   location: "",
   cover_image_url: "",
-  show_on_home: true,
+  cover_image_caption: "",
+  show_on_home: false,
   featured_on_home: false,
+  show_as_reportage: false,
   menu_section: "",
   status: "draft",
 };
@@ -118,7 +124,53 @@ async function adminRequest(path, { method = "GET", body } = {}) {
   return result;
 }
 
+function readVideoMetadata(source) {
+  const video = document.createElement("video");
+  const objectUrl = source instanceof Blob ? URL.createObjectURL(source) : null;
+
+  return new Promise((resolve, reject) => {
+    let timeoutId;
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      video.load();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+
+    timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("La vidéo n’a pas pu être lue. Vérifiez son URL ou son format."));
+    }, 15000);
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      const metadata = {
+        width: video.videoWidth,
+        height: video.videoHeight,
+        duration: video.duration,
+      };
+      cleanup();
+      resolve(metadata);
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error("La vidéo n’a pas pu être lue. Vérifiez son URL ou son format."));
+    };
+    video.src = objectUrl ?? source;
+    video.load();
+  });
+}
+
+async function assertVerticalVideo(source) {
+  const { width, height } = await readVideoMetadata(source);
+  if (!width || !height || height <= width) {
+    throw new Error("La vidéo doit être au format vertical (hauteur supérieure à la largeur).");
+  }
+}
+
 async function uploadMedia(file, kind, onProgress) {
+  if (kind === "video") await assertVerticalVideo(file);
   const signedUpload = await adminRequest("media", {
     method: "POST",
     body: { kind, mimeType: file.type, size: file.size },
@@ -132,6 +184,13 @@ async function uploadMedia(file, kind, onProgress) {
     if (error) throw new Error(`Impossible d’envoyer l’image : ${error.message}`);
     onProgress(100);
   } else {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw new Error(`Impossible de vérifier la session : ${sessionError.message}`);
+    const accessToken = sessionData.session?.access_token;
+    const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!accessToken) throw new Error("Votre session a expiré. Reconnectez-vous.");
+    if (!apiKey) throw new Error("La clé publique Supabase n’est pas configurée.");
+
     const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (!projectUrl) throw new Error("Supabase n’est pas complètement configuré.");
     const supabaseUrl = new URL(projectUrl);
@@ -143,11 +202,15 @@ async function uploadMedia(file, kind, onProgress) {
     await new Promise((resolve, reject) => {
       const upload = new Upload(file, {
         endpoint,
-        headers: { "x-signature": signedUpload.token },
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          apikey: apiKey,
+        },
         metadata: {
           bucketName: signedUpload.bucket,
           objectName: signedUpload.path,
           contentType: file.type,
+          cacheControl: "3600",
         },
         chunkSize: 6 * 1024 * 1024,
         retryDelays: [0, 3000, 5000, 10000, 20000],
@@ -312,8 +375,10 @@ function ArticleTable({ articles, compact = false, onEdit, onDelete }) {
               <td>
                 {article.show_on_home && <span className="admin-table-subtitle">Accueil</span>}
                 {article.featured_on_home && <span className="admin-table-subtitle">À la une</span>}
+                {article.show_as_reportage && <span className="admin-table-subtitle">Bulle Reportages</span>}
                 {article.menu_section && <span className="admin-table-subtitle">{mainMenuSections.find((section) => section.slug === article.menu_section)?.label ?? article.menu_section}</span>}
-                {!article.show_on_home && !article.featured_on_home && !article.menu_section && "—"}
+                {article.cover_image_url && article.status !== "published" && <span className="admin-table-subtitle">Photo importée · prête pour publication</span>}
+                {!article.show_on_home && !article.featured_on_home && !article.show_as_reportage && !article.menu_section && "—"}
               </td>
               <td><StatusBadge status={article.status}>{articleStatusLabels[article.status] ?? article.status}</StatusBadge></td>
               <td>{formatDate(article.updated_at)}</td>
@@ -359,10 +424,120 @@ function MediaUploadControl({ kind, onUploaded, onUploadingChange }) {
   return (
     <div className="admin-upload-control">
       <label>
-        Importer {kind === "video" ? "une vidéo (1 Go max)" : "une image (20 Mo max)"}
+        Importer {kind === "video" ? "une vidéo verticale (1 Go max, limite Supabase appliquée)" : "une image (20 Mo max)"}
         <input accept={kind === "video" ? "video/mp4,video/webm,video/quicktime" : "image/jpeg,image/png,image/webp"} disabled={uploading} onChange={handleUpload} type="file" />
       </label>
       {uploading && <span className="admin-muted">Envoi en cours… {progress} %</span>}
+      {error && <span className="admin-alert" role="alert">{error}</span>}
+    </div>
+  );
+}
+
+function VideoThumbnailCreator({ videoUrl, onCreated, onUploadingChange }) {
+  const videoRef = useRef(null);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setDuration(0);
+    setCurrentTime(0);
+    setError("");
+  }, [videoUrl]);
+
+  async function createThumbnail() {
+    const video = videoRef.current;
+    if (!video || !duration) return;
+    setError("");
+    setUploading(true);
+    onUploadingChange?.(true);
+
+    try {
+      const scale = Math.min(1, 1280 / video.videoHeight, 720 / video.videoWidth);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Impossible de préparer l’image miniature.");
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (result) => result
+            ? resolve(result)
+            : reject(new Error("Impossible de créer l’image miniature à cette position.")),
+          "image/jpeg",
+          0.9,
+        );
+      });
+      const file = new File([blob], "miniature-video.jpg", { type: "image/jpeg" });
+      onCreated(await uploadMedia(file, "image", setProgress));
+    } catch (thumbnailError) {
+      setError(thumbnailError instanceof Error
+        ? thumbnailError.message
+        : "Impossible de créer la miniature. Vous pouvez aussi importer une image.");
+    } finally {
+      setUploading(false);
+      setProgress(0);
+      onUploadingChange?.(false);
+    }
+  }
+
+  return (
+    <div className="video-thumbnail-creator">
+      <strong>Créer une miniature à partir de la vidéo</strong>
+      <p className="admin-muted">Choisissez une image dans la vidéo, puis enregistrez-la comme miniature.</p>
+      {videoUrl ? (
+        <>
+          <video
+            crossOrigin="anonymous"
+            key={videoUrl}
+            onError={() => setError("Impossible de lire cette vidéo ici. Vous pouvez importer une image miniature à la place.")}
+            onLoadedMetadata={(event) => {
+              const video = event.currentTarget;
+              if (video.videoHeight <= video.videoWidth) {
+                setError("La vidéo doit être au format vertical (hauteur supérieure à la largeur).");
+                return;
+              }
+              const videoDuration = Number.isFinite(video.duration) ? video.duration : 0;
+              setDuration(videoDuration);
+              const startTime = Math.min(1, videoDuration);
+              video.currentTime = startTime;
+              setCurrentTime(startTime);
+              setError("");
+            }}
+            onSeeked={(event) => setCurrentTime(event.currentTarget.currentTime)}
+            playsInline
+            preload="metadata"
+            ref={videoRef}
+            src={videoUrl}
+          />
+          {duration > 0 && (
+            <label>
+              Image à {currentTime.toFixed(1)} s
+              <input
+                max={duration}
+                min={0}
+                onChange={(event) => {
+                  const time = Number(event.target.value);
+                  setCurrentTime(time);
+                  if (videoRef.current) videoRef.current.currentTime = time;
+                }}
+                step="0.1"
+                type="range"
+                value={currentTime}
+              />
+            </label>
+          )}
+          <button className="admin-secondary-button" disabled={uploading || duration <= 0} onClick={createThumbnail} type="button">
+            {uploading ? `Création… ${progress} %` : "Créer cette miniature"}
+          </button>
+        </>
+      ) : (
+        <p className="admin-muted">Importez une vidéo verticale ou renseignez son URL pour choisir une image.</p>
+      )}
       {error && <span className="admin-alert" role="alert">{error}</span>}
     </div>
   );
@@ -375,12 +550,17 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
   const [summaryError, setSummaryError] = useState("");
   const [uploadCount, setUploadCount] = useState(0);
   const contentRef = useRef(null);
+  const excerptRef = useRef(null);
   const onUploadingChange = (isUploading) => setUploadCount((count) => count + (isUploading ? 1 : -1));
 
   function updateField(event) {
     const { name, value } = event.target;
     setForm((current) => {
       const updated = { ...current, [name]: value };
+      if (name === "menu_section") {
+        const section = mainMenuSections.find((item) => item.slug === value);
+        if (section) updated.category = section.label;
+      }
       if (name === "title" && !slugTouched) {
         updated.slug = value
           .normalize("NFD")
@@ -424,6 +604,22 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
     });
   }
 
+  function insertExcerptFormatting() {
+    const textarea = excerptRef.current;
+    if (!textarea) return;
+
+    const { selectionStart, selectionEnd } = textarea;
+    const excerptText = form.excerpt ?? "";
+    const selected = excerptText.slice(selectionStart, selectionEnd) || "texte";
+    const prefix = "**";
+    const excerpt = `${excerptText.slice(0, selectionStart)}${prefix}${selected}${prefix}${excerptText.slice(selectionEnd)}`;
+    setForm((current) => ({ ...current, excerpt }));
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(selectionStart + prefix.length, selectionStart + prefix.length + selected.length);
+    });
+  }
+
   function insertImage(url) {
     const textarea = contentRef.current;
     const content = form.content ?? "";
@@ -431,7 +627,7 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
     const before = content.slice(0, selectionStart);
     const after = content.slice(selectionStart);
     const prefix = before && !before.endsWith("\n") ? "\n" : "";
-    const description = "Décrivez la photo";
+    const description = "Légende de la photo";
     const markdown = `![${description}](${url})`;
     const suffix = after && !after.startsWith("\n") ? "\n" : "";
     const inserted = `${prefix}${markdown}${suffix}`;
@@ -458,10 +654,16 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
         <div className="admin-form-grid">
           <label className="admin-form-wide">Titre<input name="title" onChange={updateField} required value={form.title} /></label>
           <label>Slug<input name="slug" onChange={(event) => { setSlugTouched(true); updateField(event); }} required value={form.slug} /></label>
-          <label>Catégorie affichée<input name="category" onChange={updateField} required value={form.category} /></label>
+          <label>Nom du journaliste<input name="author_name" onChange={updateField} value={form.author_name ?? ""} /></label>
           <label>Lieu<input name="location" onChange={updateField} value={form.location ?? ""} /></label>
           <label className="admin-form-wide">Image de couverture (URL)<input name="cover_image_url" onChange={updateField} value={form.cover_image_url ?? ""} /></label>
           <div className="admin-form-wide"><MediaUploadControl kind="image" onUploaded={(url) => setForm((current) => ({ ...current, cover_image_url: url }))} onUploadingChange={onUploadingChange} /></div>
+          {form.cover_image_url && (
+            <p className="admin-notice admin-form-wide" role="status">
+              {form.status === "published" ? "Photo enregistrée avec l’article publié." : "Photo importée et prête ; elle restera associée à l’article jusqu’à sa publication."}
+            </p>
+          )}
+          <label className="admin-form-wide">Légende de la photo<input name="cover_image_caption" onChange={updateField} value={form.cover_image_caption ?? ""} /></label>
           <label>Statut
             <select name="status" onChange={updateField} value={form.status}>
               <option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option>
@@ -475,10 +677,9 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
             </select>
           </label>
           <label className="admin-toggle-field">
-            <input checked={form.show_on_home ?? true} name="show_on_home" onChange={(event) => setForm((current) => ({
+            <input checked={form.show_on_home ?? false} name="show_on_home" onChange={(event) => setForm((current) => ({
               ...current,
               show_on_home: event.target.checked,
-              ...(event.target.checked ? {} : { featured_on_home: false }),
             }))} type="checkbox" />
             Afficher dans les dernières actualités de l’accueil
           </label>
@@ -486,15 +687,19 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
             <input checked={form.featured_on_home ?? false} name="featured_on_home" onChange={(event) => setForm((current) => ({
               ...current,
               featured_on_home: event.target.checked,
-              ...(event.target.checked ? { show_on_home: true } : {}),
             }))} type="checkbox" />
             Fixer dans le grand cadre « À la une »
           </label>
+          <label className="admin-toggle-field">
+            <input checked={form.show_as_reportage ?? false} name="show_as_reportage" onChange={(event) => setForm((current) => ({ ...current, show_as_reportage: event.target.checked }))} type="checkbox" />
+            Ajouter aux bulles « Reportages » de l’accueil
+          </label>
           <div className="admin-form-wide admin-excerpt-field">
             <label htmlFor="article-excerpt">Chapeau</label>
-            <textarea id="article-excerpt" name="excerpt" onChange={updateField} rows={2} value={form.excerpt ?? ""} />
+            <textarea id="article-excerpt" name="excerpt" onChange={updateField} ref={excerptRef} rows={2} value={form.excerpt ?? ""} />
             <div className="admin-excerpt-tools">
               <p>Générez un résumé à partir du titre et du contenu de l’article.</p>
+              <button aria-label="Mettre en gras le texte sélectionné du chapeau" className="admin-secondary-button" onClick={insertExcerptFormatting} type="button"><Bold size={15} /> Gras</button>
               <button
                 className="admin-secondary-button admin-generate-summary"
                 disabled={summaryBusy || busy || !form.title.trim() || form.content.trim().length < 40}
@@ -517,7 +722,7 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
             </div>
             <MediaUploadControl kind="image" onUploaded={insertImage} onUploadingChange={onUploadingChange} />
             <textarea className="admin-content-field" id="article-content" name="content" onChange={updateField} ref={contentRef} rows={10} value={form.content ?? ""} />
-            <p className="admin-muted">Importez une photo pour l’insérer dans l’article. Décrivez-la dans le texte alternatif sélectionné. La mise en forme Markdown est affichée dans l’article publié.</p>
+            <p className="admin-muted">Importez une photo pour l’insérer dans l’article. Le texte sélectionné sert de texte alternatif et de légende sous la photo.</p>
           </div>
         </div>
         {error && <p className="admin-alert" role="alert">{error}</p>}
@@ -595,6 +800,7 @@ function ContentEditor({ kind, item, onClose, onSave, busy, error }) {
   }));
   const [slugTouched, setSlugTouched] = useState(Boolean(item?.id));
   const [uploadCount, setUploadCount] = useState(0);
+  const [videoValidationError, setVideoValidationError] = useState("");
   const onUploadingChange = (isUploading) => setUploadCount((count) => count + (isUploading ? 1 : -1));
 
   function updateField(event) {
@@ -608,6 +814,17 @@ function ContentEditor({ kind, item, onClose, onSave, busy, error }) {
 
   async function submit(event) {
     event.preventDefault();
+    if (kind === "video") {
+      setVideoValidationError("");
+      try {
+        await assertVerticalVideo(form.video_url);
+      } catch (validationError) {
+        setVideoValidationError(validationError instanceof Error
+          ? validationError.message
+          : "Impossible de vérifier le format de la vidéo.");
+        return;
+      }
+    }
     const values = { ...form };
     if (kind === "event") {
       values.starts_at = new Date(form.starts_at).toISOString();
@@ -657,8 +874,16 @@ function ContentEditor({ kind, item, onClose, onSave, busy, error }) {
               <label>Durée (secondes)<input min={1} name="duration_seconds" onChange={updateField} type="number" value={form.duration_seconds ?? ""} /></label>
               <label className="admin-form-wide">Vidéo (URL)<input name="video_url" onChange={updateField} required type="url" value={form.video_url ?? ""} /></label>
               <div className="admin-form-wide"><MediaUploadControl kind="video" onUploaded={(url) => setForm((current) => ({ ...current, video_url: url }))} onUploadingChange={onUploadingChange} /></div>
+              {videoValidationError && <p className="admin-alert admin-form-wide" role="alert">{videoValidationError}</p>}
               <label className="admin-form-wide">Image miniature (URL)<input name="thumbnail_url" onChange={updateField} type="url" value={form.thumbnail_url ?? ""} /></label>
               <div className="admin-form-wide"><MediaUploadControl kind="image" onUploaded={(url) => setForm((current) => ({ ...current, thumbnail_url: url }))} onUploadingChange={onUploadingChange} /></div>
+              <div className="admin-form-wide">
+                <VideoThumbnailCreator
+                  onCreated={(url) => setForm((current) => ({ ...current, thumbnail_url: url }))}
+                  onUploadingChange={onUploadingChange}
+                  videoUrl={form.video_url}
+                />
+              </div>
               <label className="admin-form-wide">Description<textarea name="description" onChange={updateField} rows={2} value={form.description ?? ""} /></label>
               <label>Position parmi les trois vidéos mises en avant
                 <select name="featured_position" onChange={updateField} value={form.featured_position ?? ""}>
@@ -670,7 +895,7 @@ function ContentEditor({ kind, item, onClose, onSave, busy, error }) {
                   <option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option>
                 </select>
               </label>
-              <p className="admin-muted admin-form-wide">Seules les vidéos publiées apparaissent sur le site. Le format MP4 est recommandé pour une lecture compatible avec la plupart des navigateurs.</p>
+              <p className="admin-muted admin-form-wide">Seules les vidéos verticales publiées apparaissent sur le site. Les formats MP4, WebM et MOV sont acceptés ; le MP4 est recommandé pour une lecture compatible avec la plupart des navigateurs.</p>
             </>
           )}
           {isEvent && (
@@ -814,7 +1039,7 @@ function ContentManagerView({ kind, items, onSave, onDelete, busy, error }) {
         </div>
         <p className="admin-muted">
           {isVideo
-            ? "Importez une vidéo MP4, WebM ou MOV (1 Go maximum), puis choisissez jusqu’à trois positions de mise en avant."
+            ? "Importez uniquement des vidéos verticales MP4, WebM ou MOV (jusqu’à 1 Go, dans la limite de votre forfait Supabase ; 50 Mo maximum sur le forfait gratuit), puis choisissez jusqu’à trois positions de mise en avant."
             : isEvent
               ? "Les événements publiés à venir apparaissent dans les bulles de la page d’accueil."
               : "Les infos rapides publiées apparaissent dans la pile de cartes de la page d’accueil."}
@@ -1009,6 +1234,76 @@ function StatisticsView({ data }) {
   );
 }
 
+function DailyFactEditor({ dailyFact, onSave, busy, error }) {
+  const [form, setForm] = useState({ value: "", suffix: "", description: "", ...dailyFact });
+
+  useEffect(() => {
+    setForm({ value: "", suffix: "", description: "", ...dailyFact });
+  }, [dailyFact]);
+
+  return (
+    <section className="admin-panel">
+      <div className="admin-panel-heading">
+        <div><p className="admin-eyebrow">Accueil</p><h2>Modifier le chiffre du jour</h2></div>
+      </div>
+      <form className="admin-form-grid" onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
+        <label>Chiffre<input maxLength={60} onChange={(event) => setForm((current) => ({ ...current, value: event.target.value }))} required value={form.value} /></label>
+        <label>Unité ou précision<input maxLength={60} onChange={(event) => setForm((current) => ({ ...current, suffix: event.target.value }))} value={form.suffix} /></label>
+        <label className="admin-form-wide">Texte d’accompagnement<textarea maxLength={240} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} required rows={3} value={form.description} /></label>
+        {error && <p className="admin-alert admin-form-wide" role="alert">{error}</p>}
+        <div className="admin-modal-actions admin-form-wide">
+          <button className="admin-primary-button" disabled={busy} type="submit"><Save size={16} />{busy ? "Enregistrement…" : "Enregistrer"}</button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function LiveUpdateEditor({ liveUpdate, onSave, busy, error }) {
+  const [form, setForm] = useState({
+    title: "",
+    copy: "",
+    link_url: "",
+    link_label: "Suivre l’actualité",
+    is_published: false,
+    ...liveUpdate,
+  });
+
+  useEffect(() => {
+    setForm({
+      title: "",
+      copy: "",
+      link_url: "",
+      link_label: "Suivre l’actualité",
+      is_published: false,
+      ...liveUpdate,
+    });
+  }, [liveUpdate]);
+
+  return (
+    <section className="admin-panel">
+      <div className="admin-panel-heading">
+        <div><p className="admin-eyebrow">Accueil</p><h2>Modifier l’information « En direct »</h2></div>
+      </div>
+      <p className="admin-muted">Une seule information à la fois. Lorsqu’elle est publiée, elle remplace le contenu de la carte « En direct » sans modifier l’article « À la une ».</p>
+      <form className="admin-form-grid" onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
+        <label className="admin-form-wide">Titre<input maxLength={120} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} value={form.title} /></label>
+        <label className="admin-form-wide">Texte<textarea maxLength={600} onChange={(event) => setForm((current) => ({ ...current, copy: event.target.value }))} rows={5} value={form.copy} /></label>
+        <label className="admin-form-wide">Lien facultatif (URL complète)<input maxLength={2048} onChange={(event) => setForm((current) => ({ ...current, link_url: event.target.value }))} type="url" value={form.link_url} /></label>
+        <label className="admin-form-wide">Texte du lien<input maxLength={50} onChange={(event) => setForm((current) => ({ ...current, link_label: event.target.value }))} value={form.link_label} /></label>
+        <label className="admin-toggle-field admin-form-wide">
+          <input checked={form.is_published} onChange={(event) => setForm((current) => ({ ...current, is_published: event.target.checked }))} type="checkbox" />
+          Afficher cette information dans la carte « En direct »
+        </label>
+        {error && <p className="admin-alert admin-form-wide" role="alert">{error}</p>}
+        <div className="admin-modal-actions admin-form-wide">
+          <button className="admin-primary-button" disabled={busy} type="submit"><Save size={16} />{busy ? "Enregistrement…" : "Enregistrer"}</button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 function NotesView({ note, onSave, onSummarize, busy }) {
   const [content, setContent] = useState(note?.content ?? "");
   const [summary, setSummary] = useState("");
@@ -1181,7 +1476,11 @@ function AdminWorkspace({ session, supabase }) {
     ? "overview"
     : section === "quickInfos"
       ? "quick-infos"
-      : section;
+      : section === "liveUpdate"
+        ? "live-update"
+      : section === "dailyFact"
+        ? "daily-fact"
+        : section;
   const requestPath = section === "rss"
     ? `rss?category=${encodeURIComponent(rssQueryCategory)}&region=${encodeURIComponent(rssQueryRegion)}`
     : endpoint;
@@ -1226,6 +1525,8 @@ function AdminWorkspace({ session, supabase }) {
         } else if (section === "videos") value = result.videos;
         else if (section === "events") value = result.events;
         else if (section === "quickInfos") value = result.quickInfos;
+        else if (section === "liveUpdate") value = result.liveUpdate;
+        else if (section === "dailyFact") value = result.dailyFact;
         else if (section === "reportages") value = result.reportages;
         else if (section === "rss") value = result.items;
         setLoadedData({ key: dataKey, value });
@@ -1302,6 +1603,20 @@ function AdminWorkspace({ session, supabase }) {
       const result = await adminRequest("notes", { method: "PUT", body: { content } });
       setLoadedData({ key: dataKey, value: result.note });
     }, "Bloc-notes enregistré.", { refresh: false });
+  }
+
+  async function saveDailyFact(values) {
+    await runAction(
+      () => adminRequest("daily-fact", { method: "PUT", body: values }),
+      "Chiffre du jour enregistré.",
+    );
+  }
+
+  async function saveLiveUpdate(values) {
+    await runAction(
+      () => adminRequest("live-update", { method: "PUT", body: values }),
+      "Information « En direct » enregistrée.",
+    );
   }
 
   async function summarizeNote(content) {
@@ -1404,7 +1719,7 @@ function AdminWorkspace({ session, supabase }) {
               {section === "overview" && <OverviewView data={data} onNavigate={setSection} />}
               {section === "articles" && (
                 <section className="admin-panel">
-                  <div className="admin-panel-heading"><div><p className="admin-eyebrow">Publication</p><h2>Articles</h2></div><button className="admin-primary-button" onClick={() => setEditor({ ...emptyArticle })} type="button"><Plus size={17} /> Nouvel article</button></div>
+                  <div className="admin-panel-heading"><div><p className="admin-eyebrow">Publication</p><h2>Articles</h2></div><button className="admin-primary-button" onClick={() => setEditor({ ...emptyArticle, author_name: profile?.fullName ?? "" })} type="button"><Plus size={17} /> Nouvel article</button></div>
                   <ArticleTable articles={data ?? []} onEdit={(article) => setEditor({ ...article })} onDelete={deleteArticle} />
                 </section>
               )}
@@ -1420,6 +1735,8 @@ function AdminWorkspace({ session, supabase }) {
               {section === "videos" && <ContentManagerView busy={busy} error={error} items={data ?? []} kind="video" onDelete={deleteContent} onSave={saveContent} />}
               {section === "events" && <ContentManagerView busy={busy} error={error} items={data ?? []} kind="event" onDelete={deleteContent} onSave={saveContent} />}
               {section === "quickInfos" && <ContentManagerView busy={busy} error={error} items={data ?? []} kind="quickInfo" onDelete={deleteContent} onSave={saveContent} />}
+              {section === "liveUpdate" && <LiveUpdateEditor busy={busy} error={error} liveUpdate={data} onSave={saveLiveUpdate} />}
+              {section === "dailyFact" && <DailyFactEditor busy={busy} dailyFact={data} error={error} onSave={saveDailyFact} />}
               {section === "rss" && (
                 <RssView
                   items={data ?? []}

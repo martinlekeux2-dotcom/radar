@@ -18,11 +18,11 @@ function SocialIcon({ network }) {
 }
 
 const socialLinks = [
-  { label: "Facebook", href: "https://www.facebook.com/" },
-  { label: "Instagram", href: "https://www.instagram.com/" },
+  { label: "Facebook", href: "https://www.facebook.com/campusskolaeliberte/" },
+  { label: "Instagram", href: "https://www.instagram.com/skolae_liberte/" },
   { label: "X", href: "https://x.com/" },
   { label: "LinkedIn", href: "https://www.linkedin.com/" },
-  { label: "TikTok", href: "https://www.tiktok.com/" },
+  { label: "TikTok", href: "https://www.tiktok.com/@skolae_liberte" },
 ];
 
 const legalLinks = [
@@ -50,6 +50,14 @@ export default function SiteFooter() {
               <SocialIcon network={label} />
             </a>
           ))}
+        </div>
+      </div>
+      <div className="page-shell pb-8">
+        <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-3 rounded-2xl border border-white/25 bg-white/10 px-6 py-7 text-center sm:flex-row sm:gap-5">
+          <p className="text-base font-bold text-white md:text-lg">Une question ? Contactez-nous sur</p>
+          <a className="footer-contact-button" href="mailto:radar@gmail.com">
+            radar@gmail.com
+          </a>
         </div>
       </div>
       <div className="border-t border-white/15">

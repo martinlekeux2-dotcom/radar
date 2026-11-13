@@ -44,7 +44,7 @@ export default async function ReportagePage({ params }) {
   return (
     <main>
       <article className="reportage-article page-shell">
-        <Link className="inline-flex items-center gap-2 text-sm font-bold" href="/#reportages">
+        <Link className="inline-flex items-center gap-2 text-sm font-bold" href="/reportages">
           <ArrowLeft size={16} aria-hidden="true" />
           Tous les reportages
         </Link>

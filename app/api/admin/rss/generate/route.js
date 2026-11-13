@@ -185,9 +185,10 @@ export async function POST(request) {
         content,
         category: articleDraft.category,
         location: articleDraft.location || null,
-        author_name: user.email ?? "RADAR",
+        author_name: user.user_metadata?.full_name || user.email || "RADAR",
         tags,
         status: "draft",
+        show_on_home: false,
         published_at: null,
         updated_at: new Date().toISOString(),
       })

@@ -1,4 +1,4 @@
-function renderInline(text) {
+export function renderInlineMarkdown(text) {
   return text.split(/(!\[[^\]]*\]\(https?:\/\/[^)\s]+\)|\*\*[^*]+\*\*|\*[^*]+\*)/gi).map((part, index) => {
     const image = part.match(/^!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)$/i);
     if (image) {
@@ -54,14 +54,15 @@ export default function ArticleContent({ content }) {
           return (
             <figure className="article-image" key={index}>
               <img alt={block.alt} decoding="async" loading="lazy" src={block.src} />
+              {block.alt && <figcaption>{block.alt}</figcaption>}
             </figure>
           );
         }
-        if (block.type === "quote") return <blockquote key={index}>{renderInline(block.text)}</blockquote>;
-        if (block.type === "h1") return <h2 key={index}>{renderInline(block.text)}</h2>;
-        if (block.type === "h2") return <h3 key={index}>{renderInline(block.text)}</h3>;
-        if (block.type === "h3") return <h4 key={index}>{renderInline(block.text)}</h4>;
-        return <p key={index}>{renderInline(block.text)}</p>;
+        if (block.type === "quote") return <blockquote key={index}>{renderInlineMarkdown(block.text)}</blockquote>;
+        if (block.type === "h1") return <h2 key={index}>{renderInlineMarkdown(block.text)}</h2>;
+        if (block.type === "h2") return <h3 key={index}>{renderInlineMarkdown(block.text)}</h3>;
+        if (block.type === "h3") return <h4 key={index}>{renderInlineMarkdown(block.text)}</h4>;
+        return <p key={index}>{renderInlineMarkdown(block.text)}</p>;
       })}
     </div>
   );

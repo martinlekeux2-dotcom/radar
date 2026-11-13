@@ -73,8 +73,23 @@ export async function POST(request) {
     const validated = validateVideo(body.data);
     if (validated.error) return Response.json({ error: validated.error }, { status: 400 });
 
-    const { data, error } = await db.from("videos").insert(validated.video).select("*").single();
+    const featuredPosition = validated.video.featured_position;
+    const video = {
+      ...validated.video,
+      featured_position: validated.video.status === "published" ? null : featuredPosition,
+    };
+    const { data, error } = await db.from("videos").insert(video).select("*").single();
     if (error) return Response.json({ error: `Impossible de créer la vidéo : ${error.message}` }, { status: 400 });
+    if (featuredPosition !== null && validated.video.status === "published") {
+      const { error: featuredError } = await db.rpc("set_home_featured_video", {
+        target_video_id: data.id,
+        target_position: featuredPosition,
+      });
+      if (featuredError) {
+        return Response.json({ error: `La vidéo a été créée, mais sa mise en avant a échoué : ${featuredError.message}` }, { status: 500 });
+      }
+      data.featured_position = featuredPosition;
+    }
     return Response.json({ video: data }, { status: 201 });
   });
 }
@@ -89,14 +104,29 @@ export async function PATCH(request) {
     const validated = validateVideo(body.data);
     if (validated.error) return Response.json({ error: validated.error }, { status: 400 });
 
+    const featuredPosition = validated.video.featured_position;
+    const video = {
+      ...validated.video,
+      featured_position: validated.video.status === "published" ? null : featuredPosition,
+    };
     const { data, error } = await db
       .from("videos")
-      .update(validated.video)
+      .update(video)
       .eq("id", body.data.id)
       .select("*")
       .maybeSingle();
     if (error) return Response.json({ error: `Impossible de modifier la vidéo : ${error.message}` }, { status: 400 });
     if (!data) return Response.json({ error: "Cette vidéo n’existe plus." }, { status: 404 });
+    if (featuredPosition !== null && validated.video.status === "published") {
+      const { error: featuredError } = await db.rpc("set_home_featured_video", {
+        target_video_id: data.id,
+        target_position: featuredPosition,
+      });
+      if (featuredError) {
+        return Response.json({ error: `La vidéo a été modifiée, mais sa mise en avant a échoué : ${featuredError.message}` }, { status: 500 });
+      }
+      data.featured_position = featuredPosition;
+    }
     return Response.json({ video: data });
   });
 }

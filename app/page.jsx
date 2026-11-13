@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   ArrowUpRight,
-  Leaf,
   MapPin,
   Play,
   Sparkles,
@@ -11,9 +10,12 @@ import QuickInfoStack from "./components/quick-info-stack";
 import WeatherCard from "./components/weather-card";
 import { articles } from "./lib/articles";
 import { reportages as fallbackReportages } from "./lib/reportages";
+import { renderInlineMarkdown } from "./components/article-content";
 import {
+  getDailyFact,
   getPublishedArticles,
   getPublishedEvents,
+  getPublishedLiveUpdate,
   getPublishedQuickInfos,
   getPublishedReportages,
   getPublishedVideos,
@@ -91,9 +93,11 @@ function SectionHeading({ kicker, title, href = "#en-direct", linkLabel = "Tout 
         <p className="eyebrow mb-2">{kicker}</p>
         <h2 className="section-title">{title}</h2>
       </div>
-      <Link className="mb-1 inline-flex shrink-0 items-center gap-2 text-xs font-bold hover:underline" href={href}>
-        {linkLabel} <ArrowRight size={15} />
-      </Link>
+      {linkLabel && (
+        <Link className="mb-1 inline-flex shrink-0 items-center gap-2 text-xs font-bold hover:underline" href={href}>
+          {linkLabel} <ArrowRight size={15} />
+        </Link>
+      )}
     </div>
   );
 }
@@ -101,25 +105,30 @@ function SectionHeading({ kicker, title, href = "#en-direct", linkLabel = "Tout 
 export default async function Home({ searchParams }) {
   const { q = "" } = await searchParams;
   const query = typeof q === "string" ? q.trim() : "";
-  const [databaseArticles, databaseVideos, databaseEvents, databaseQuickInfos, databaseReportages] = await Promise.all([
-    getPublishedArticles({ homeOnly: !query }),
+  const [databaseArticles, databaseVideos, databaseEvents, databaseQuickInfos, databaseReportages, databaseDailyFact, liveUpdate] = await Promise.all([
+    getPublishedArticles(),
     getPublishedVideos(),
     getPublishedEvents(),
     getPublishedQuickInfos(),
     getPublishedReportages({ homeOnly: true }),
+    getDailyFact(),
+    getPublishedLiveUpdate(),
   ]);
   const articleSource = databaseArticles ?? articles;
+  const latestArticles = databaseArticles === null
+    ? articleSource
+    : articleSource.filter((article) => article.show_on_home);
   const matchingArticles = query
-    ? (databaseArticles ?? articles).filter((article) =>
+    ? articleSource.filter((article) =>
         `${article.category} ${article.title} ${article.excerpt ?? ""}`
           .toLocaleLowerCase("fr")
           .includes(query.toLocaleLowerCase("fr")),
       )
-    : articleSource;
+    : latestArticles;
   const filteredArticles = matchingArticles.slice(0, 4);
-  const featuredArticle = articleSource.find((article) => article.featured_on_home)
-    ?? filteredArticles[0]
-    ?? (databaseArticles === null ? articles[0] : null);
+  const featuredArticle = databaseArticles === null
+    ? articles[0]
+    : articleSource.find((article) => article.featured_on_home) ?? null;
   const videos = databaseVideos === null
     ? fallbackVideos.map((video, index) => ({ ...video, featured_position: index < 3 ? index + 1 : null }))
     : databaseVideos.map((video, index) => ({
@@ -127,9 +136,10 @@ export default async function Home({ searchParams }) {
         tone: videoTones[index % videoTones.length],
         duration: formatVideoDuration(video.duration_seconds),
       }));
-  const featuredVideos = databaseVideos === null
-    ? videos.slice(0, 3)
-    : videos.filter((video) => video.featured_position).slice(0, 3);
+  const manuallyFeaturedVideos = videos.filter((video) => video.featured_position);
+  const featuredVideos = manuallyFeaturedVideos.length
+    ? manuallyFeaturedVideos.slice(0, 3)
+    : videos.slice(0, 3).map((video, index) => ({ ...video, featured_position: index + 1 }));
   const events = databaseEvents === null
     ? fallbackEvents
     : databaseEvents.map((event, index) => ({
@@ -141,6 +151,11 @@ export default async function Home({ searchParams }) {
         tone: ["peach", "lilac", "sage"][index % 3],
       }));
   const quickInfos = databaseQuickInfos ?? fallbackQuickInfos;
+  const dailyFact = databaseDailyFact ?? {
+    value: "1 idée",
+    suffix: "/ jour",
+    description: "Pour comprendre l’actualité sans perdre le fil.",
+  };
   const reportageCards = databaseReportages === null
     ? fallbackReportages.map((reportage, index) => ({
         ...reportage,
@@ -151,6 +166,19 @@ export default async function Home({ searchParams }) {
         position: index,
       }))
     : databaseReportages;
+  const articleReportageCards = articleSource
+    .filter((article) => article.show_as_reportage)
+    .map((article) => ({
+      id: article.id,
+      slug: article.slug,
+      title: article.title,
+      author_name: article.author_name || "RADAR",
+      image_url: article.cover_image_url,
+      image_description: article.cover_image_caption || article.title,
+      published_at: article.published_at,
+      isArticle: true,
+    }));
+  const homepageReportageCards = [...articleReportageCards, ...reportageCards];
 
   return (
     <main>
@@ -165,15 +193,25 @@ export default async function Home({ searchParams }) {
             <div className="briefing-grid">
               <article className="briefing-card live-briefing-card">
                 <p className="eyebrow"><span className="live-dot" /> En direct</p>
-                {featuredArticle ? (
+                {liveUpdate ? (
+                  <>
+                    <h1 className="briefing-card-title">{liveUpdate.title}</h1>
+                    <p className="briefing-card-copy">{renderInlineMarkdown(liveUpdate.copy)}</p>
+                    {liveUpdate.link_url && (
+                      <a className="briefing-card-link" href={liveUpdate.link_url} rel="noopener noreferrer" target="_blank">
+                        {liveUpdate.link_label || "Suivre l’actualité"} <ArrowUpRight size={14} aria-hidden="true" />
+                      </a>
+                    )}
+                  </>
+                ) : featuredArticle ? (
                   <>
                     <h1 className="briefing-card-title">{featuredArticle.title}</h1>
-                    <p className="briefing-card-copy">{featuredArticle.excerpt || formatArticleTime(featuredArticle.published_at)}</p>
+                    <p className="briefing-card-copy">{featuredArticle.excerpt ? renderInlineMarkdown(featuredArticle.excerpt) : formatArticleTime(featuredArticle.published_at)}</p>
                     <Link className="briefing-card-link" href={featuredArticle.slug ? `/articles/${featuredArticle.slug}` : `/#${featuredArticle.id}`}>
                       Suivre l’actualité <ArrowUpRight size={14} aria-hidden="true" />
                     </Link>
                   </>
-                ) : <p className="briefing-card-copy">Aucun article publié pour le moment.</p>}
+                ) : <p className="briefing-card-copy">Aucune information n’est publiée en direct pour le moment.</p>}
               </article>
               <WeatherCard />
             </div>
@@ -189,13 +227,11 @@ export default async function Home({ searchParams }) {
             aria-label={featuredArticle.title}
             style={featuredArticle.cover_image_url ? { backgroundImage: `url("${featuredArticle.cover_image_url}")` } : undefined}
           >
-            <span className="featured-doodle featured-doodle-sparkle"><Sparkles size={25} aria-hidden="true" /></span>
-            <span className="featured-doodle featured-doodle-leaf"><Leaf size={29} aria-hidden="true" /></span>
           </div>
           <div className="flex flex-col justify-center px-3 py-5 md:px-4 md:py-8">
             <p className="eyebrow mb-5"><span className="rounded-full bg-ink px-2.5 py-1 text-[9px] text-white">À LA UNE</span> {featuredArticle.category}</p>
             <h2 className="font-display text-3xl font-black leading-[1.02] tracking-[-0.05em] md:text-5xl">{featuredArticle.title}</h2>
-            <p className="mt-5 max-w-md text-sm leading-6 text-muted">{featuredArticle.excerpt}</p>
+            <p className="mt-5 max-w-md text-sm leading-6 text-muted">{renderInlineMarkdown(featuredArticle.excerpt || "")}</p>
             <Link className="mt-7 inline-flex w-fit items-center gap-2 text-sm font-bold" href={featuredArticle.slug ? `/articles/${featuredArticle.slug}` : `/#${featuredArticle.id}`}>
               Lire l’article <ArrowUpRight size={16} />
             </Link>
@@ -205,7 +241,7 @@ export default async function Home({ searchParams }) {
 
       <section className="latest-news-section scroll-reveal py-14 md:py-20" id="en-direct">
         <div className="page-shell">
-          <SectionHeading kicker="Mis à jour en continu" title={query ? `${matchingArticles.length} résultat${matchingArticles.length > 1 ? "s" : ""}` : "Les dernières actualités"} />
+          <SectionHeading kicker="Mis à jour en continu" title={query ? `${matchingArticles.length} résultat${matchingArticles.length > 1 ? "s" : ""}` : "Les dernières actualités"} linkLabel={null} />
           {filteredArticles.length ? (
             <>
               <div className="latest-stories-grid">
@@ -224,7 +260,7 @@ export default async function Home({ searchParams }) {
                       <div className="latest-story-content">
                         <p className="latest-story-time">{article.time || formatArticleTime(article.published_at)}</p>
                         <h3>{article.title}</h3>
-                        <p className="latest-story-excerpt">{article.excerpt || ""}</p>
+                        <p className="latest-story-excerpt">{renderInlineMarkdown(article.excerpt || "")}</p>
                       </div>
                     </Link>
                   </article>
@@ -232,15 +268,15 @@ export default async function Home({ searchParams }) {
               </div>
               {!query && (
                 <div className="latest-more-wrap">
-                  <Link className="latest-more-button" href="#reportages">
+                  <a className="latest-more-button" href="#reportages">
                     Plus de reportages <ArrowRight size={16} aria-hidden="true" />
-                  </Link>
+                  </a>
                 </div>
               )}
             </>
           ) : (
             <p className="rounded-xl bg-paper p-6 text-sm text-muted">
-              {query ? "Aucun article ne correspond à cette recherche. Essayez un autre mot-clé." : "Aucun article publié pour le moment."}
+              {query ? "Aucun article ne correspond à cette recherche. Essayez un autre mot-clé." : "Aucune actualité n’a été sélectionnée pour l’accueil pour le moment."}
             </p>
           )}
         </div>
@@ -253,9 +289,9 @@ export default async function Home({ searchParams }) {
               <span className="daily-fact-icon"><Sparkles size={18} aria-hidden="true" /></span>
               <div className="daily-fact-number">
                 <p className="eyebrow">Le chiffre du jour</p>
-                <p><strong>1 idée</strong><span> / jour</span></p>
+                <p><strong>{dailyFact.value}</strong>{dailyFact.suffix && <span> {dailyFact.suffix}</span>}</p>
               </div>
-              <p className="daily-fact-copy">Pour comprendre l&apos;actualité sans perdre le fil.</p>
+              <p className="daily-fact-copy">{dailyFact.description}</p>
             </aside>
           </section>
 
@@ -298,7 +334,7 @@ export default async function Home({ searchParams }) {
                 <div className="marquee-track videos-marquee">
                   {videos.map((video) => (
                     <article className="video-card" key={video.id ?? video.slug ?? video.title}>
-                      <div className={`video-art ${video.tone}`}>
+                      <div className={`video-art ${video.tone} ${video.video_url ? "has-video" : ""}`}>
                         {video.video_url
                           ? <video className="video-card-media" aria-label={`Lire ${video.title}`} controls playsInline poster={video.thumbnail_url || undefined} preload="metadata" src={video.video_url}>Votre navigateur ne peut pas lire cette vidéo.</video>
                           : <span className="video-play"><Play size={17} fill="currentColor" /></span>}
@@ -316,7 +352,7 @@ export default async function Home({ searchParams }) {
           <section className="community-section scroll-reveal" id="evenements">
             <div className="page-shell community-grid">
               <div className="events-panel">
-                <SectionHeading kicker="À vivre près de chez vous" title="Événements à la une" href="#evenements" linkLabel="L'agenda complet" />
+                <SectionHeading kicker="À vivre près de chez vous" title="Événements à la une" href="/evenements" linkLabel="L'agenda complet" />
                 <div className="events-stars">
                   {events.map((event, index) => (
                     <article
@@ -344,17 +380,17 @@ export default async function Home({ searchParams }) {
 
           <section className="reportages-section scroll-reveal" id="reportages">
             <div className="page-shell">
-              <SectionHeading kicker="À découvrir" title="Reportages" href="/#reportages" linkLabel="Tous les reportages" />
+              <SectionHeading kicker="À découvrir" title="Reportages" href="/reportages" linkLabel="Tous les reportages" />
             </div>
             <div className="marquee-viewport" aria-label="Reportages à découvrir, défilement automatique">
               <div className="marquee-track reportage-marquee">
                 {[0, 1].map((copy) => (
                   <div className="marquee-group" key={copy} aria-hidden={copy === 1}>
-                    {reportageCards.map((reportage) => (
+                    {homepageReportageCards.map((reportage) => (
                       <Link
                         className="reportage-card"
-                        href={`/reportages/${reportage.slug}`}
-                        key={reportage.slug}
+                        href={`${reportage.isArticle ? "/articles" : "/reportages"}/${reportage.slug}`}
+                        key={`${reportage.id ?? reportage.slug}-${reportage.isArticle ? "article" : "reportage"}`}
                         tabIndex={copy === 1 ? -1 : undefined}
                       >
                         <span
@@ -364,14 +400,14 @@ export default async function Home({ searchParams }) {
                           style={{ backgroundImage: `url("${reportage.image_url || fallbackEventImages[0]}")` }}
                         />
                         <h3>{reportage.title}</h3>
-                        <p className="reportage-card-meta">{reportage.published_at ? formatArticleTime(reportage.published_at) : reportage.date}<br />Par {reportage.author_name}</p>
+                        <p className="reportage-card-meta">{reportage.published_at ? formatArticleTime(reportage.published_at) : reportage.date}<br />Par {reportage.author_name || "RADAR"}</p>
                       </Link>
                     ))}
                   </div>
                 ))}
               </div>
             </div>
-            {!reportageCards.length && <p className="page-shell rounded-xl bg-paper p-6 text-sm text-muted">Aucun reportage à découvrir pour le moment.</p>}
+            {!homepageReportageCards.length && <p className="page-shell rounded-xl bg-paper p-6 text-sm text-muted">Aucun reportage à découvrir pour le moment.</p>}
           </section>
 
           <section className="scroll-reveal page-shell py-14 md:py-20" id="newsletter">
