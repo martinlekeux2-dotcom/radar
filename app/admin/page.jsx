@@ -1320,6 +1320,10 @@ function AboutUsEditor({ aboutUs, onSave, busy, error }) {
     photo_3_url: "",
     photo_3_alt: "",
     text_3: "",
+    first_name_4: "",
+    photo_4_url: "",
+    photo_4_alt: "",
+    text_4: "",
     is_published: false,
     ...aboutUs,
   });
@@ -1340,6 +1344,10 @@ function AboutUsEditor({ aboutUs, onSave, busy, error }) {
       photo_3_url: "",
       photo_3_alt: "",
       text_3: "",
+      first_name_4: "",
+      photo_4_url: "",
+      photo_4_alt: "",
+      text_4: "",
       is_published: false,
       ...aboutUs,
     });
@@ -1349,6 +1357,7 @@ function AboutUsEditor({ aboutUs, onSave, busy, error }) {
     { number: 1, firstName: "first_name_1", url: "photo_1_url", alt: "photo_1_alt", text: "text_1" },
     { number: 2, firstName: "first_name_2", url: "photo_2_url", alt: "photo_2_alt", text: "text_2" },
     { number: 3, firstName: "first_name_3", url: "photo_3_url", alt: "photo_3_alt", text: "text_3" },
+    { number: 4, firstName: "first_name_4", url: "photo_4_url", alt: "photo_4_alt", text: "text_4" },
   ];
 
   function updateField(event) {

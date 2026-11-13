@@ -122,7 +122,7 @@ export async function getPublishedAboutUs() {
 
   const { data, error } = await client
     .from("about_us")
-    .select("title, first_name_1, photo_1_url, photo_1_alt, text_1, first_name_2, photo_2_url, photo_2_alt, text_2, first_name_3, photo_3_url, photo_3_alt, text_3")
+    .select("title, first_name_1, photo_1_url, photo_1_alt, text_1, first_name_2, photo_2_url, photo_2_alt, text_2, first_name_3, photo_3_url, photo_3_alt, text_3, first_name_4, photo_4_url, photo_4_alt, text_4")
     .eq("id", 1)
     .eq("is_published", true)
     .maybeSingle();

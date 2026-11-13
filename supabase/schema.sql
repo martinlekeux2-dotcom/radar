@@ -121,6 +121,10 @@ create table if not exists public.about_us (
   photo_3_url text not null default '',
   photo_3_alt text not null default '',
   text_3 text not null default '',
+  first_name_4 text not null default '',
+  photo_4_url text not null default '',
+  photo_4_alt text not null default '',
+  text_4 text not null default '',
   is_published boolean not null default false,
   updated_at timestamptz not null default now()
 );

@@ -22,6 +22,7 @@ import {
   getPublishedReportages,
   getPublishedVideos,
 } from "../src/lib/public-content";
+import AboutUsSection from "./components/about-us-section";
 
 const fallbackQuickInfos = [
   {
@@ -413,41 +414,7 @@ export default async function Home({ searchParams }) {
             {!homepageReportageCards.length && <p className="page-shell rounded-xl bg-paper p-6 text-sm text-muted">Aucun reportage à découvrir pour le moment.</p>}
           </section>
 
-          {aboutUs && (
-            <section aria-labelledby="about-us-title" className="about-us-section" id="qui-sommes-nous">
-              <div className="page-shell">
-                <div className="about-us-heading">
-                  <div>
-                    <p className="eyebrow">Qui sommes-nous ?</p>
-                    <h2 className="headline" id="about-us-title">{aboutUs.title}</h2>
-                  </div>
-                  <span className="about-us-stamp">RADAR<br />EN COULISSES</span>
-                </div>
-                <div className="about-us-photo-grid">
-                  {[
-                    { firstName: aboutUs.first_name_1, url: aboutUs.photo_1_url, alt: aboutUs.photo_1_alt, text: aboutUs.text_1 },
-                    { firstName: aboutUs.first_name_2, url: aboutUs.photo_2_url, alt: aboutUs.photo_2_alt, text: aboutUs.text_2 },
-                    { firstName: aboutUs.first_name_3, url: aboutUs.photo_3_url, alt: aboutUs.photo_3_alt, text: aboutUs.text_3 },
-                  ].map((person, index) => (
-                    <article className={`about-us-person-card about-us-person-card-${index + 1}`} key={person.firstName}>
-                      <h3 className="about-us-person-name">{person.firstName}</h3>
-                      <div className="about-us-photo">
-                        <Image
-                          alt={person.alt || `Photo de ${person.firstName}`}
-                          fill
-                          sizes="(max-width: 760px) 72vw, 32vw"
-                          src={person.url}
-                          unoptimized
-                        />
-                        <span className="about-us-photo-index">0{index + 1}<small> / 03</small></span>
-                      </div>
-                      <p className="about-us-person-text">{person.text}</p>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
+          {aboutUs && <AboutUsSection aboutUs={aboutUs} />}
 
           <section className="scroll-reveal page-shell py-14 md:py-20" id="newsletter">
             <div className="newsletter-card">

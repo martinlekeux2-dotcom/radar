@@ -5,6 +5,7 @@ const aboutPhotoFields = [
   { firstName: "first_name_1", text: "text_1", url: "photo_1_url", alt: "photo_1_alt" },
   { firstName: "first_name_2", text: "text_2", url: "photo_2_url", alt: "photo_2_alt" },
   { firstName: "first_name_3", text: "text_3", url: "photo_3_url", alt: "photo_3_alt" },
+  { firstName: "first_name_4", text: "text_4", url: "photo_4_url", alt: "photo_4_alt" },
 ];
 
 const emptyAboutUs = {
@@ -21,6 +22,10 @@ const emptyAboutUs = {
   photo_3_url: "",
   photo_3_alt: "",
   text_3: "",
+  first_name_4: "",
+  photo_4_url: "",
+  photo_4_alt: "",
+  text_4: "",
   is_published: false,
 };
 
@@ -63,7 +68,7 @@ function validateAboutUs(body) {
     !title
     || aboutPhotoFields.some(({ firstName, text, url }) => !aboutUs[firstName] || !aboutUs[text] || !aboutUs[url])
   )) {
-    return { error: "Pour publier la section, renseignez le titre, les trois prénoms, les trois photos et leur texte." };
+    return { error: "Pour publier la section, renseignez le titre, les quatre prénoms, les quatre photos et leur texte." };
   }
 
   return { aboutUs };
@@ -73,7 +78,7 @@ export async function GET(request) {
   return withAdmin(request, async ({ db }) => {
     const { data, error } = await db
       .from("about_us")
-      .select("title, first_name_1, photo_1_url, photo_1_alt, text_1, first_name_2, photo_2_url, photo_2_alt, text_2, first_name_3, photo_3_url, photo_3_alt, text_3, is_published")
+      .select("title, first_name_1, photo_1_url, photo_1_alt, text_1, first_name_2, photo_2_url, photo_2_alt, text_2, first_name_3, photo_3_url, photo_3_alt, text_3, first_name_4, photo_4_url, photo_4_alt, text_4, is_published")
       .eq("id", 1)
       .maybeSingle();
 
@@ -94,7 +99,7 @@ export async function PUT(request) {
     const { data, error } = await db
       .from("about_us")
       .upsert(validated.aboutUs)
-      .select("title, first_name_1, photo_1_url, photo_1_alt, text_1, first_name_2, photo_2_url, photo_2_alt, text_2, first_name_3, photo_3_url, photo_3_alt, text_3, is_published")
+      .select("title, first_name_1, photo_1_url, photo_1_alt, text_1, first_name_2, photo_2_url, photo_2_alt, text_2, first_name_3, photo_3_url, photo_3_alt, text_3, first_name_4, photo_4_url, photo_4_alt, text_4, is_published")
       .single();
 
     if (error) {
