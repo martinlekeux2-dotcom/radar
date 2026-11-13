@@ -4,9 +4,32 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRef, useState } from "react";
 import {
+  Building2,
+  Clapperboard,
+  Compass,
+  Landmark,
   Menu,
   Search,
+  ShoppingBasket,
+  Trophy,
+  Users,
 } from "lucide-react";
+import { mainMenuSections } from "../../src/lib/content-config";
+
+const sectionIcons = {
+  region: Building2,
+  monde: Compass,
+  politique: Landmark,
+  sport: Trophy,
+  societe: Users,
+  culture: Clapperboard,
+  "eco-conso": ShoppingBasket,
+};
+const sections = mainMenuSections.map((section) => ({
+  ...section,
+  href: `/rubriques/${section.slug}`,
+  Icon: sectionIcons[section.slug],
+}));
 
 export default function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -68,6 +91,14 @@ export default function SiteHeader() {
               )}
             </div>
           </div>
+          <nav className="section-nav" aria-label="Rubriques">
+            {sections.map(({ label, href, Icon }) => (
+              <Link href={href} key={label}>
+                <Icon className="section-nav-icon" strokeWidth={1.5} aria-hidden="true" />
+                <span className="section-nav-label">{label}</span>
+              </Link>
+            ))}
+          </nav>
         </div>
       </div>
     </header>

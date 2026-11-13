@@ -346,6 +346,57 @@ a {
   }
 }
 
+.section-nav {
+  display: flex;
+  min-height: 47px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.section-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.section-nav a {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  color: #55544f;
+  font-size: 12px;
+  font-weight: 700;
+  transition: color 150ms ease, transform 150ms ease;
+}
+
+.section-nav a:hover {
+  color: #171717;
+}
+
+.section-nav-icon {
+  width: 26px;
+  height: 26px;
+  color: #171717;
+  stroke-width: 1.5;
+  transition: transform 180ms ease;
+}
+
+.section-nav a:hover .section-nav-icon,
+.section-nav a:focus-visible .section-nav-icon {
+  animation: section-icon-bounce 450ms ease;
+}
+
+.section-nav-label {
+  display: inline-block;
+}
+
+.section-nav a:hover .section-nav-label,
+.section-nav a:focus-visible .section-nav-label {
+  animation: section-icon-bounce 450ms ease;
+}
+
 @keyframes section-icon-bounce {
   0%, 100% { transform: translateY(0); }
   35% { transform: translateY(-5px); }
@@ -772,7 +823,11 @@ a {
 
 @media (prefers-reduced-motion: reduce) {
   .brand-link:hover .brand-logo,
-  .brand-link:focus-visible .brand-logo {
+  .brand-link:focus-visible .brand-logo,
+  .section-nav a:hover .section-nav-icon,
+  .section-nav a:focus-visible .section-nav-icon,
+  .section-nav a:hover .section-nav-label,
+  .section-nav a:focus-visible .section-nav-label {
     animation: none;
   }
 
@@ -2949,6 +3004,12 @@ a {
     margin-bottom: 11px;
   }
 
+  .section-nav {
+    min-height: 43px;
+    justify-content: flex-start;
+    gap: 22px;
+  }
+
   .reportages-section {
     padding-block: 36px;
   }
@@ -3002,6 +3063,10 @@ a {
 
   .brand-link:hover .brand-logo,
   .brand-link:focus-visible .brand-logo,
+  .section-nav a:hover .section-nav-icon,
+  .section-nav a:focus-visible .section-nav-icon,
+  .section-nav a:hover .section-nav-label,
+  .section-nav a:focus-visible .section-nav-label,
   .reportage-marquee,
   .videos-marquee,
   .scroll-reveal,
