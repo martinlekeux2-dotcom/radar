@@ -4,32 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRef, useState } from "react";
 import {
-  Building2,
-  Clapperboard,
-  Compass,
-  Landmark,
   Menu,
   Search,
-  ShoppingBasket,
-  Trophy,
-  Users,
 } from "lucide-react";
-import { mainMenuSections } from "../../src/lib/content-config";
-
-const sectionIcons = {
-  region: Building2,
-  monde: Compass,
-  politique: Landmark,
-  sport: Trophy,
-  societe: Users,
-  culture: Clapperboard,
-  "eco-conso": ShoppingBasket,
-};
-const sections = mainMenuSections.map((section) => ({
-  ...section,
-  href: `/rubriques/${section.slug}`,
-  Icon: sectionIcons[section.slug],
-}));
 
 export default function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -82,18 +59,9 @@ export default function SiteHeader() {
               </button>
               {menuOpen && (
                 <nav className="menu-panel" id="main-menu-panel" aria-label="Menu principal" onMouseEnter={openMenu}>
-                  <p className="menu-panel-title">Parcourir les rubriques</p>
-                  <div className="menu-panel-sections">
-                    {sections.map(({ label, href, Icon }) => (
-                      <Link href={href} key={href} onClick={() => setMenuOpen(false)}>
-                        <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
-                        <span>{label}</span>
-                      </Link>
-                    ))}
-                  </div>
-                  <div className="menu-panel-secondary">
+                  <div className="menu-panel-links">
                     <Link href="/qui-sommes-nous">Qui sommes-nous ?</Link>
-                    <Link href="mailto:bonjour@radar.media">Contact</Link>
+                    <Link href="mailto:radar@gmail.com">Contact</Link>
                     <Link href="#reseaux">Nous suivre</Link>
                   </div>
                 </nav>
@@ -101,14 +69,6 @@ export default function SiteHeader() {
             </div>
           </div>
         </div>
-        <nav className="section-nav" aria-label="Rubriques">
-          {sections.map(({ label, href, Icon }) => (
-            <Link href={href} key={label}>
-              <Icon className="section-nav-icon" strokeWidth={1.5} aria-hidden="true" />
-              <span className="section-nav-label">{label}</span>
-            </Link>
-          ))}
-        </nav>
       </div>
     </header>
   );
