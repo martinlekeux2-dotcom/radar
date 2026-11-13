@@ -91,15 +91,15 @@ export default function SiteHeader() {
               )}
             </div>
           </div>
-          <nav className="section-nav" aria-label="Rubriques">
-            {sections.map(({ label, href, Icon }) => (
-              <Link href={href} key={label}>
-                <Icon className="section-nav-icon" strokeWidth={1.5} aria-hidden="true" />
-                <span className="section-nav-label">{label}</span>
-              </Link>
-            ))}
-          </nav>
         </div>
+        <nav className="section-nav" aria-label="Rubriques">
+          {sections.map(({ label, href, Icon }) => (
+            <Link href={href} key={label}>
+              <Icon className="section-nav-icon" strokeWidth={1.5} aria-hidden="true" />
+              <span className="section-nav-label">{label}</span>
+            </Link>
+          ))}
+        </nav>
       </div>
     </header>
   );
