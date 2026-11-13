@@ -15,14 +15,12 @@ import { renderInlineMarkdown } from "./components/article-content";
 import {
   getDailyFact,
   getPublishedArticles,
-  getPublishedAboutUs,
   getPublishedEvents,
   getPublishedLiveUpdate,
   getPublishedQuickInfos,
   getPublishedReportages,
   getPublishedVideos,
 } from "../src/lib/public-content";
-import AboutUsSection from "./components/about-us-section";
 
 const fallbackQuickInfos = [
   {
@@ -108,7 +106,7 @@ function SectionHeading({ kicker, title, href = "#en-direct", linkLabel = "Tout 
 export default async function Home({ searchParams }) {
   const { q = "" } = await searchParams;
   const query = typeof q === "string" ? q.trim() : "";
-  const [databaseArticles, databaseVideos, databaseEvents, databaseQuickInfos, databaseReportages, databaseDailyFact, liveUpdate, aboutUs] = await Promise.all([
+  const [databaseArticles, databaseVideos, databaseEvents, databaseQuickInfos, databaseReportages, databaseDailyFact, liveUpdate] = await Promise.all([
     getPublishedArticles(),
     getPublishedVideos(),
     getPublishedEvents(),
@@ -116,7 +114,6 @@ export default async function Home({ searchParams }) {
     getPublishedReportages({ homeOnly: true }),
     getDailyFact(),
     getPublishedLiveUpdate(),
-    getPublishedAboutUs(),
   ]);
   const articleSource = databaseArticles ?? articles;
   const latestArticles = databaseArticles === null
@@ -413,8 +410,6 @@ export default async function Home({ searchParams }) {
             </div>
             {!homepageReportageCards.length && <p className="page-shell rounded-xl bg-paper p-6 text-sm text-muted">Aucun reportage à découvrir pour le moment.</p>}
           </section>
-
-          {aboutUs && <AboutUsSection aboutUs={aboutUs} />}
 
           <section className="scroll-reveal page-shell py-14 md:py-20" id="newsletter">
             <div className="newsletter-card">
