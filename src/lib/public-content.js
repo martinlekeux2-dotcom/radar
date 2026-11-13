@@ -116,6 +116,21 @@ export async function getPublishedLiveUpdate() {
   return data;
 }
 
+export async function getPublishedAboutUs() {
+  const client = getPublicClient();
+  if (!client) return null;
+
+  const { data, error } = await client
+    .from("about_us")
+    .select("title, first_name_1, photo_1_url, photo_1_alt, text_1, first_name_2, photo_2_url, photo_2_alt, text_2, first_name_3, photo_3_url, photo_3_alt, text_3")
+    .eq("id", 1)
+    .eq("is_published", true)
+    .maybeSingle();
+
+  if (error) throw new Error(`Impossible de charger la section « Qui sommes-nous ? » : ${error.message}`);
+  return data;
+}
+
 export async function getPublishedArticle(slug) {
   const client = getPublicClient();
   if (!client) return null;

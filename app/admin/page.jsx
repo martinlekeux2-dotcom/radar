@@ -48,6 +48,7 @@ const navigation = [
   { id: "events", label: "Événements", Icon: CalendarDays },
   { id: "quickInfos", label: "Infos rapides", Icon: Lightbulb },
   { id: "liveUpdate", label: "En direct", Icon: Radio },
+  { id: "aboutUs", label: "Qui sommes-nous ?", Icon: Users },
   { id: "dailyFact", label: "Chiffre du jour", Icon: Sparkles },
   { id: "rss", label: "Flux RSS", Icon: Rss },
   { id: "notes", label: "Bloc-notes", Icon: NotebookPen },
@@ -1285,7 +1286,7 @@ function LiveUpdateEditor({ liveUpdate, onSave, busy, error }) {
       <div className="admin-panel-heading">
         <div><p className="admin-eyebrow">Accueil</p><h2>Modifier l’information « En direct »</h2></div>
       </div>
-      <p className="admin-muted">Une seule information à la fois. Lorsqu’elle est publiée, elle remplace le contenu de la carte « En direct » sans modifier l’article « À la une ».</p>
+      <p className="admin-muted">Une seule information à la fois. Cochez l’option d’affichage pour la publier sur la page d’accueil. Elle remplace alors le contenu de la carte « En direct » sans modifier l’article « À la une ».</p>
       <form className="admin-form-grid" onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
         <label className="admin-form-wide">Titre<input maxLength={120} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} value={form.title} /></label>
         <label className="admin-form-wide">Texte<textarea maxLength={600} onChange={(event) => setForm((current) => ({ ...current, copy: event.target.value }))} rows={5} value={form.copy} /></label>
@@ -1298,6 +1299,107 @@ function LiveUpdateEditor({ liveUpdate, onSave, busy, error }) {
         {error && <p className="admin-alert admin-form-wide" role="alert">{error}</p>}
         <div className="admin-modal-actions admin-form-wide">
           <button className="admin-primary-button" disabled={busy} type="submit"><Save size={16} />{busy ? "Enregistrement…" : "Enregistrer"}</button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function AboutUsEditor({ aboutUs, onSave, busy, error }) {
+  const [form, setForm] = useState({
+    title: "",
+    first_name_1: "",
+    photo_1_url: "",
+    photo_1_alt: "",
+    text_1: "",
+    first_name_2: "",
+    photo_2_url: "",
+    photo_2_alt: "",
+    text_2: "",
+    first_name_3: "",
+    photo_3_url: "",
+    photo_3_alt: "",
+    text_3: "",
+    is_published: false,
+    ...aboutUs,
+  });
+  const [uploadCount, setUploadCount] = useState(0);
+
+  useEffect(() => {
+    setForm({
+      title: "",
+      first_name_1: "",
+      photo_1_url: "",
+      photo_1_alt: "",
+      text_1: "",
+      first_name_2: "",
+      photo_2_url: "",
+      photo_2_alt: "",
+      text_2: "",
+      first_name_3: "",
+      photo_3_url: "",
+      photo_3_alt: "",
+      text_3: "",
+      is_published: false,
+      ...aboutUs,
+    });
+  }, [aboutUs]);
+
+  const photos = [
+    { number: 1, firstName: "first_name_1", url: "photo_1_url", alt: "photo_1_alt", text: "text_1" },
+    { number: 2, firstName: "first_name_2", url: "photo_2_url", alt: "photo_2_alt", text: "text_2" },
+    { number: 3, firstName: "first_name_3", url: "photo_3_url", alt: "photo_3_alt", text: "text_3" },
+  ];
+
+  function updateField(event) {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function submit(event) {
+    event.preventDefault();
+    onSave(form);
+  }
+
+  return (
+    <section className="admin-panel">
+      <div className="admin-panel-heading">
+        <div><p className="admin-eyebrow">Page d’accueil</p><h2>Qui sommes-nous ?</h2></div>
+      </div>
+      <p className="admin-muted">Pour chaque personne, renseignez le prénom, la photo et le texte qui apparaîtra sous celle-ci.</p>
+      <form className="admin-form-grid" onSubmit={submit}>
+        <label className="admin-form-wide">Titre de la section
+          <input maxLength={120} name="title" onChange={updateField} required={form.is_published} value={form.title} />
+        </label>
+        <div className="admin-about-photos admin-form-wide">
+          {photos.map(({ number, firstName, url, alt, text }) => (
+            <div className="admin-about-photo-field" key={firstName}>
+              <h3>Personne 0{number}</h3>
+              <label>Prénom<input maxLength={80} name={firstName} onChange={updateField} required={form.is_published} value={form[firstName]} /></label>
+              <label>Adresse de la photo<input maxLength={2048} name={url} onChange={updateField} required={form.is_published} type="url" value={form[url]} /></label>
+              <MediaUploadControl
+                kind="image"
+                onUploaded={(uploadedUrl) => setForm((current) => ({ ...current, [url]: uploadedUrl }))}
+                onUploadingChange={(isUploading) => setUploadCount((count) => count + (isUploading ? 1 : -1))}
+              />
+              <label>Description de la photo (accessibilité)
+                <input maxLength={160} name={alt} onChange={updateField} value={form[alt]} />
+              </label>
+              <label>Texte sous la photo
+                <textarea maxLength={1200} name={text} onChange={updateField} required={form.is_published} rows={4} value={form[text]} />
+              </label>
+            </div>
+          ))}
+        </div>
+        <label className="admin-toggle-field admin-form-wide">
+          <input checked={form.is_published} onChange={(event) => setForm((current) => ({ ...current, is_published: event.target.checked }))} type="checkbox" />
+          Afficher cette section sur le site
+        </label>
+        {error && <p className="admin-alert admin-form-wide" role="alert">{error}</p>}
+        <div className="admin-modal-actions admin-form-wide">
+          <button className="admin-primary-button" disabled={busy || uploadCount > 0} type="submit">
+            <Save size={16} />{busy ? "Enregistrement…" : uploadCount > 0 ? "Envoi des photos…" : "Enregistrer"}
+          </button>
         </div>
       </form>
     </section>
@@ -1476,6 +1578,8 @@ function AdminWorkspace({ session, supabase }) {
     ? "overview"
     : section === "quickInfos"
       ? "quick-infos"
+    : section === "aboutUs"
+      ? "about-us"
       : section === "liveUpdate"
         ? "live-update"
       : section === "dailyFact"
@@ -1525,6 +1629,7 @@ function AdminWorkspace({ session, supabase }) {
         } else if (section === "videos") value = result.videos;
         else if (section === "events") value = result.events;
         else if (section === "quickInfos") value = result.quickInfos;
+        else if (section === "aboutUs") value = result.aboutUs;
         else if (section === "liveUpdate") value = result.liveUpdate;
         else if (section === "dailyFact") value = result.dailyFact;
         else if (section === "reportages") value = result.reportages;
@@ -1614,8 +1719,23 @@ function AdminWorkspace({ session, supabase }) {
 
   async function saveLiveUpdate(values) {
     await runAction(
-      () => adminRequest("live-update", { method: "PUT", body: values }),
+      async () => {
+        const result = await adminRequest("live-update", { method: "PUT", body: values });
+        setLoadedData({ key: dataKey, value: result.liveUpdate });
+      },
       "Information « En direct » enregistrée.",
+      { refresh: false },
+    );
+  }
+
+  async function saveAboutUs(values) {
+    await runAction(
+      async () => {
+        const result = await adminRequest("about-us", { method: "PUT", body: values });
+        setLoadedData({ key: dataKey, value: result.aboutUs });
+      },
+      "La section « Qui sommes-nous ? » a été enregistrée.",
+      { refresh: false },
     );
   }
 
@@ -1736,6 +1856,7 @@ function AdminWorkspace({ session, supabase }) {
               {section === "events" && <ContentManagerView busy={busy} error={error} items={data ?? []} kind="event" onDelete={deleteContent} onSave={saveContent} />}
               {section === "quickInfos" && <ContentManagerView busy={busy} error={error} items={data ?? []} kind="quickInfo" onDelete={deleteContent} onSave={saveContent} />}
               {section === "liveUpdate" && <LiveUpdateEditor busy={busy} error={error} liveUpdate={data} onSave={saveLiveUpdate} />}
+              {section === "aboutUs" && <AboutUsEditor aboutUs={data} busy={busy} error={error} onSave={saveAboutUs} />}
               {section === "dailyFact" && <DailyFactEditor busy={busy} dailyFact={data} error={error} onSave={saveDailyFact} />}
               {section === "rss" && (
                 <RssView

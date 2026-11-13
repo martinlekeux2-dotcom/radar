@@ -2258,6 +2258,151 @@ a {
   padding-block: 48px;
 }
 
+.about-us-section {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8% 12%, rgb(255 255 255 / 62%) 0 7%, transparent 7.2%),
+    linear-gradient(135deg, #dce8d9, #e2cbf6 58%, #faf9f6);
+  padding-block: clamp(56px, 8vw, 112px);
+}
+
+.about-us-section::before {
+  position: absolute;
+  z-index: -1;
+  top: -220px;
+  right: -120px;
+  width: 460px;
+  aspect-ratio: 1;
+  border: 1px solid rgb(62 40 80 / 12%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 35px rgb(255 255 255 / 10%), 0 0 0 70px rgb(62 40 80 / 4%);
+  content: "";
+}
+
+.about-us-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: clamp(28px, 5vw, 58px);
+}
+
+.about-us-heading h2 {
+  max-width: 760px;
+  margin: 0;
+}
+
+.about-us-stamp {
+  display: grid;
+  width: 96px;
+  height: 96px;
+  flex: 0 0 auto;
+  place-content: center;
+  border: 1px solid rgb(23 23 23 / 18%);
+  border-radius: 50%;
+  background: var(--color-radar-green);
+  color: #171717;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1.6;
+  text-align: center;
+  transform: rotate(8deg);
+}
+
+.about-us-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: clamp(16px, 3vw, 38px);
+}
+
+.about-us-person-card {
+  margin: 0;
+  border: 1px solid rgb(255 255 255 / 88%);
+  background: #fff;
+  padding: 9px;
+  box-shadow: 0 22px 48px rgb(37 25 46 / 14%);
+}
+
+.about-us-person-card-1 {
+  transform: rotate(-2.5deg);
+}
+
+.about-us-person-card-2 {
+  margin-top: 48px;
+  transform: rotate(2deg);
+}
+
+.about-us-person-card-3 {
+  margin-top: 12px;
+  transform: rotate(-1deg);
+}
+
+.about-us-person-name {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 4px 10px;
+  color: #3e2850;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.2vw, 28px);
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.about-us-person-name::before {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-radar-green);
+  content: "";
+}
+
+.about-us-photo {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  background:
+    linear-gradient(145deg, rgb(62 40 80 / 10%), transparent 50%),
+    linear-gradient(35deg, #aed083, #e2cbf6);
+}
+
+.about-us-photo img {
+  object-fit: cover;
+}
+
+.about-us-photo-index {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  border: 1px solid rgb(255 255 255 / 64%);
+  border-radius: 999px;
+  background: rgb(23 23 23 / 68%);
+  padding: 7px 10px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.about-us-photo-index small {
+  color: rgb(255 255 255 / 68%);
+  font-size: 8px;
+}
+
+.about-us-person-text {
+  margin: 16px 4px 8px;
+  color: #30243a;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
 .reportages-section .section-heading {
   margin-bottom: 24px;
   border-color: rgb(23 23 23 / 18%);
@@ -4254,6 +4399,43 @@ a {
   margin: 0;
 }
 
+.admin-about-photos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-about-photo-field {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid #e2dfd8;
+  border-radius: 12px;
+  background: #faf9fc;
+  padding: 14px;
+}
+
+.admin-about-photo-field h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-about-photo-field label {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-about-photo-field input {
+  min-width: 0;
+}
+
+.admin-about-photo-field .admin-upload-control {
+  padding: 9px;
+}
+
 .video-thumbnail-creator {
   display: grid;
   gap: 9px;
@@ -4323,6 +4505,52 @@ a {
 }
 
 @media (max-width: 760px) {
+  .about-us-section {
+    padding-block: 52px;
+  }
+
+  .about-us-heading {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .about-us-heading h2 {
+    font-size: clamp(38px, 11vw, 58px);
+  }
+
+  .about-us-stamp {
+    width: 68px;
+    height: 68px;
+    margin-top: 8px;
+    font-size: 7px;
+  }
+
+  .about-us-photo-grid {
+    display: flex;
+    overflow-x: auto;
+    align-items: flex-start;
+    gap: 20px;
+    margin-inline: -8px;
+    padding: 8px 8px 18px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+  }
+
+  .about-us-person-card {
+    width: min(72vw, 280px);
+    flex: 0 0 min(72vw, 280px);
+    scroll-snap-align: center;
+  }
+
+  .about-us-person-card-2,
+  .about-us-person-card-3 {
+    margin-top: 22px;
+  }
+
+  .admin-about-photos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .article-body {
     font-size: 15px;
   }

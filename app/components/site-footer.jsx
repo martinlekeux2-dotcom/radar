@@ -36,7 +36,7 @@ const legalLinks = [
 
 export default function SiteFooter() {
   return (
-    <footer className="site-footer text-white" id="qui-sommes-nous">
+    <footer className="site-footer text-white">
       <div className="page-shell flex flex-col gap-8 py-10 md:flex-row md:items-end md:justify-between md:py-14">
         <div>
           <Link className="footer-brand" href="/" aria-label="RADAR, accueil">

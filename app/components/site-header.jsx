@@ -92,7 +92,7 @@ export default function SiteHeader() {
                     ))}
                   </div>
                   <div className="menu-panel-secondary">
-                    <Link href="#qui-sommes-nous">Qui sommes-nous ?</Link>
+                    <Link href="/#qui-sommes-nous">Qui sommes-nous ?</Link>
                     <Link href="mailto:bonjour@radar.media">Contact</Link>
                     <Link href="#reseaux">Nous suivre</Link>
                   </div>
