@@ -33,7 +33,6 @@ export default function AboutUsSection({ aboutUs, standalone = false }) {
                     src={person.url}
                     unoptimized
                   />
-                  <span className="about-us-photo-index">0{number}<small> / 04</small></span>
                 </div>
                 <p className="about-us-person-text">{person.text}</p>
               </article>
