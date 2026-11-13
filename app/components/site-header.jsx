@@ -53,7 +53,7 @@ export default function SiteHeader() {
           </Link>
           <form action="/" className="search-form" role="search">
             <Search size={17} aria-hidden="true" />
-            <input aria-label="Rechercher sur RADAR" name="q" placeholder="rechercher un sujet" />
+            <input aria-label="Rechercher sur RADAR" name="q" placeholder="Rechercher un sujet" />
             <button aria-label="Lancer la recherche" type="submit"><span className="sr-only">Rechercher</span><Search size={16} /></button>
           </form>
           <div className="header-actions">
