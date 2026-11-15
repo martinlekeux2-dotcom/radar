@@ -297,7 +297,7 @@ export default async function Home({ searchParams }) {
           </section>
 
           <section className="videos-section scroll-reveal page-shell py-14 md:py-20" id="videos">
-            <SectionHeading kicker="À regarder, à partager" title="Vidéos & shorts" href="#videos" linkLabel="Toutes les vidéos" />
+            <SectionHeading kicker="À regarder, à partager" title="Vidéos & shorts" href="/videos" linkLabel="Toutes les vidéos" />
             {featuredVideos.length ? (
               <div className="video-ranking" aria-label="Vidéos mises en avant">
                 {featuredVideos.map((video) => (

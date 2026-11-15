@@ -235,11 +235,16 @@ a {
 }
 
 .search-form button,
-.menu-summary {
+.menu-summary,
+.mobile-search-toggle {
   border: 0;
   background: transparent;
   color: #171717;
   cursor: pointer;
+}
+
+.mobile-search-toggle {
+  display: none;
 }
 
 .header-actions {
@@ -608,6 +613,10 @@ a {
 }
 
 @media (max-width: 760px) {
+  body {
+    min-width: 0;
+  }
+
   .briefing-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 20px;
@@ -620,22 +629,26 @@ a {
 }
 
 .reportages-index-page,
-.agenda-page {
+.agenda-page,
+.videos-index-page {
   padding-block: 36px 80px;
 }
 
 .reportages-index-header,
-.agenda-page-header {
+.agenda-page-header,
+.videos-index-header {
   margin: 38px 0 32px;
 }
 
 .reportages-index-header h1,
-.agenda-page-header h1 {
+.agenda-page-header h1,
+.videos-index-header h1 {
   margin: 0;
 }
 
 .reportages-index-header > p:last-child,
-.agenda-page-header > p:last-child {
+.agenda-page-header > p:last-child,
+.videos-index-header > p:last-child {
   max-width: 580px;
   margin: 14px 0 0;
   color: #5f5c62;
@@ -686,12 +699,43 @@ a {
 }
 
 .reportages-index-empty,
-.agenda-empty {
+.agenda-empty,
+.videos-index-empty {
   border: 1px solid rgb(117 79 145 / 14%);
   border-radius: 18px;
   background: #fff;
   padding: 24px;
   color: #5f5c62;
+}
+
+.videos-index-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 30px 22px;
+}
+
+.videos-index-grid .video-card,
+.videos-index-grid .video-art {
+  width: 100%;
+}
+
+.videos-index-grid .video-card h2 {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.videos-index-description,
+.videos-index-date {
+  margin: 8px 0 0;
+  color: #5f5c62;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.videos-index-date {
+  color: #77766f;
+  font-size: 11px;
 }
 
 .agenda-event-grid {
@@ -788,12 +832,14 @@ a {
 
 @media (max-width: 560px) {
   .reportages-index-page,
-  .agenda-page {
+  .agenda-page,
+  .videos-index-page {
     padding-block: 28px 56px;
   }
 
   .reportages-index-header,
-  .agenda-page-header {
+  .agenda-page-header,
+  .videos-index-header {
     margin: 30px 0 24px;
   }
 
@@ -1123,6 +1169,7 @@ a {
 .admin-sidebar {
   position: sticky;
   top: 0;
+  align-self: start;
   display: flex;
   height: 100vh;
   flex-direction: column;
@@ -1147,7 +1194,9 @@ a {
 
 .admin-sidebar-nav {
   display: grid;
+  min-height: 0;
   gap: 4px;
+  overflow-y: auto;
 }
 
 .admin-sidebar-nav button,
@@ -1910,7 +1959,7 @@ a {
 
 @media (max-width: 720px) {
   body:has(.admin-layout) {
-    min-width: 360px;
+    min-width: 0;
   }
 
   .admin-layout {
@@ -2975,7 +3024,25 @@ a {
   }
 
   .search-form {
+    display: none;
     grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .search-form.is-open {
+    display: flex;
+  }
+
+  .mobile-search-toggle {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border: 1px solid rgb(62 40 80 / 18%);
+    border-radius: 50%;
+    background: rgb(255 255 255 / 82%);
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .admin-excerpt-tools {
@@ -4026,6 +4093,10 @@ a {
 }
 
 @media (max-width: 460px) {
+  .newsletter-action {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .event-bubble-date {
     bottom: 9%;
     min-height: 36px;

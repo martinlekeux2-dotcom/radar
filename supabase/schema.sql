@@ -290,6 +290,7 @@ create policy "Public can read the daily fact"
   using (id = 1);
 
 drop policy if exists "Public can read the published live update" on public.live_update;
+grant select on table public.live_update to anon, authenticated;
 create policy "Public can read the published live update"
   on public.live_update for select to anon, authenticated
   using (id = 1 and is_published);

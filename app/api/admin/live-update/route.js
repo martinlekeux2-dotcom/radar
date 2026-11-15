@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { readJson, withAdmin } from "../../../../src/lib/admin-api";
 import { isHttpUrl } from "../../../../src/lib/content-config";
 
@@ -73,6 +74,7 @@ export async function PUT(request) {
     if (error) {
       return Response.json({ error: `Impossible d’enregistrer l’information « En direct » : ${error.message}` }, { status: 500 });
     }
+    revalidatePath("/", "page");
     return Response.json({ liveUpdate: data });
   });
 }

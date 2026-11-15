@@ -367,20 +367,22 @@ function ArticleTable({ articles, compact = false, onEdit, onDelete }) {
   return (
     <div className="admin-table-wrap">
       <table className="admin-table">
-        <thead><tr><th>Titre</th><th>Rubrique</th><th>Emplacements</th><th>Statut</th><th>Modifié le</th>{!compact && <th>Actions</th>}</tr></thead>
+        <thead><tr><th>Titre</th><th>Rubrique</th>{!compact && <th>Emplacements</th>}<th>Statut</th><th>Modifié le</th>{!compact && <th>Actions</th>}</tr></thead>
         <tbody>
           {articles.map((article, index) => (
             <tr key={`${article.id || article.slug || article.title || "article"}-${index}`}>
               <td><strong>{article.title}</strong><span className="admin-table-subtitle">/{article.slug}</span></td>
               <td>{article.category}{article.location && <span className="admin-table-subtitle">{article.location}</span>}</td>
-              <td>
-                {article.show_on_home && <span className="admin-table-subtitle">Accueil</span>}
-                {article.featured_on_home && <span className="admin-table-subtitle">À la une</span>}
-                {article.show_as_reportage && <span className="admin-table-subtitle">Bulle Reportages</span>}
-                {article.menu_section && <span className="admin-table-subtitle">{mainMenuSections.find((section) => section.slug === article.menu_section)?.label ?? article.menu_section}</span>}
-                {article.cover_image_url && article.status !== "published" && <span className="admin-table-subtitle">Photo importée · prête pour publication</span>}
-                {!article.show_on_home && !article.featured_on_home && !article.show_as_reportage && !article.menu_section && "—"}
-              </td>
+              {!compact && (
+                <td>
+                  {article.show_on_home && <span className="admin-table-subtitle">Accueil</span>}
+                  {article.featured_on_home && <span className="admin-table-subtitle">À la une</span>}
+                  {article.show_as_reportage && <span className="admin-table-subtitle">Bulle Reportages</span>}
+                  {article.menu_section && <span className="admin-table-subtitle">{mainMenuSections.find((section) => section.slug === article.menu_section)?.label ?? article.menu_section}</span>}
+                  {article.cover_image_url && article.status !== "published" && <span className="admin-table-subtitle">Photo importée · prête pour publication</span>}
+                  {!article.show_on_home && !article.featured_on_home && !article.show_as_reportage && !article.menu_section && "—"}
+                </td>
+              )}
               <td><StatusBadge status={article.status}>{articleStatusLabels[article.status] ?? article.status}</StatusBadge></td>
               <td>{formatDate(article.updated_at)}</td>
               {!compact && (
@@ -428,6 +430,11 @@ function MediaUploadControl({ kind, onUploaded, onUploadingChange }) {
         Importer {kind === "video" ? "une vidéo verticale (1 Go max, limite Supabase appliquée)" : "une image (20 Mo max)"}
         <input accept={kind === "video" ? "video/mp4,video/webm,video/quicktime" : "image/jpeg,image/png,image/webp"} disabled={uploading} onChange={handleUpload} type="file" />
       </label>
+      {kind === "video" && (
+        <span className="admin-muted">
+          Pour une lecture fiable sur téléphone, privilégiez le MP4 encodé en H.264 (vidéo) et AAC (audio). Les fichiers MOV/HEVC peuvent ne pas être compatibles.
+        </span>
+      )}
       {uploading && <span className="admin-muted">Envoi en cours… {progress} %</span>}
       {error && <span className="admin-alert" role="alert">{error}</span>}
     </div>
@@ -1047,15 +1054,15 @@ function ContentManagerView({ kind, items, onSave, onDelete, busy, error }) {
         </p>
         {!items.length ? <p className="admin-empty">Aucun contenu enregistré.</p> : (
           <div className="admin-table-wrap"><table className="admin-table">
-            <thead><tr><th>Titre</th><th>Détail</th><th>Statut</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Titre</th>{!isVideo && <th>Détail</th>}<th>Statut</th><th>Actions</th></tr></thead>
             <tbody>{items.map((item) => (
               <tr key={item.id}>
                 <td><strong>{item.title}</strong><span className="admin-table-subtitle">/{item.slug ?? item.id}</span></td>
-                <td>{isVideo
-                  ? item.featured_position ? `Mise en avant ${item.featured_position}/3` : item.category || "Non classée"
-                  : isEvent
+                {!isVideo && (
+                  <td>{isEvent
                     ? `${item.featured_position ? `Bulle ${item.featured_position} · ` : ""}${formatDate(item.starts_at)} · ${[item.venue, item.city].filter(Boolean).join(", ")}`
                     : `${item.category} · position ${item.position}`}</td>
+                )}
                 <td><StatusBadge status={item.status}>{item.status === "published" ? "Publié" : item.status === "cancelled" ? "Annulé" : articleStatusLabels[item.status] ?? item.status}</StatusBadge></td>
                 <td><div className="admin-row-actions">
                   <button aria-label={`Modifier ${label} ${item.title}`} onClick={() => setEditor(item)} type="button"><FileText size={16} /></button>

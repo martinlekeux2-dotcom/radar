@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Building2,
   Clapperboard,
@@ -13,6 +13,7 @@ import {
   ShoppingBasket,
   Trophy,
   Users,
+  X,
 } from "lucide-react";
 import { mainMenuSections } from "../../src/lib/content-config";
 
@@ -33,7 +34,13 @@ const sections = mainMenuSections.map((section) => ({
 
 export default function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const menuCloseTimer = useRef(null);
+  const searchInputRef = useRef(null);
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
 
   function openMenu() {
     clearTimeout(menuCloseTimer.current);
@@ -51,11 +58,20 @@ export default function SiteHeader() {
           <Link className="brand-link" href="/" aria-label="RADAR, accueil">
             <Image className="brand-logo" src="/radar-logo-hq.png" alt="RADAR — Capte l’info" width={504} height={339} preload unoptimized />
           </Link>
-          <form action="/" className="search-form" role="search">
-            <Search size={17} aria-hidden="true" />
-            <input aria-label="Rechercher sur RADAR" name="q" placeholder="Rechercher un sujet" />
+          <form action="/" className={`search-form ${searchOpen ? "is-open" : ""}`} id="site-search-form" role="search">
             <button aria-label="Lancer la recherche" type="submit"><span className="sr-only">Rechercher</span><Search size={16} /></button>
+            <input aria-label="Rechercher sur RADAR" name="q" placeholder="Rechercher un sujet" ref={searchInputRef} />
           </form>
+          <button
+            aria-controls="site-search-form"
+            aria-expanded={searchOpen}
+            aria-label={searchOpen ? "Fermer la recherche" : "Ouvrir la recherche"}
+            className="mobile-search-toggle"
+            onClick={() => setSearchOpen((open) => !open)}
+            type="button"
+          >
+            {searchOpen ? <X size={19} aria-hidden="true" /> : <Search size={19} aria-hidden="true" />}
+          </button>
           <div className="header-actions">
             <div
               className="menu-dropdown"

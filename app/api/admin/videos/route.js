@@ -1,7 +1,13 @@
+import { revalidatePath } from "next/cache";
 import { readJson, withAdmin } from "../../../../src/lib/admin-api";
 import { isHttpUrl } from "../../../../src/lib/content-config";
 
 const videoStatuses = ["draft", "published", "archived"];
+
+function revalidateVideoPages() {
+  revalidatePath("/", "page");
+  revalidatePath("/videos", "page");
+}
 
 function validateVideo(body) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -80,6 +86,7 @@ export async function POST(request) {
     };
     const { data, error } = await db.from("videos").insert(video).select("*").single();
     if (error) return Response.json({ error: `Impossible de créer la vidéo : ${error.message}` }, { status: 400 });
+    revalidateVideoPages();
     if (featuredPosition !== null && validated.video.status === "published") {
       const { error: featuredError } = await db.rpc("set_home_featured_video", {
         target_video_id: data.id,
@@ -117,6 +124,7 @@ export async function PATCH(request) {
       .maybeSingle();
     if (error) return Response.json({ error: `Impossible de modifier la vidéo : ${error.message}` }, { status: 400 });
     if (!data) return Response.json({ error: "Cette vidéo n’existe plus." }, { status: 404 });
+    revalidateVideoPages();
     if (featuredPosition !== null && validated.video.status === "published") {
       const { error: featuredError } = await db.rpc("set_home_featured_video", {
         target_video_id: data.id,
@@ -141,6 +149,7 @@ export async function DELETE(request) {
     const { data, error } = await db.from("videos").delete().eq("id", body.data.id).select("id").maybeSingle();
     if (error) return Response.json({ error: `Impossible de supprimer la vidéo : ${error.message}` }, { status: 400 });
     if (!data) return Response.json({ error: "Cette vidéo n’existe plus." }, { status: 404 });
+    revalidateVideoPages();
     return Response.json({ success: true });
   });
 }
