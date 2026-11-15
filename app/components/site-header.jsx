@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { mainMenuSections } from "../../src/lib/content-config";
+import ReadAloudControl from "./read-aloud-control";
 
 const sectionIcons = {
   region: Building2,
@@ -73,6 +74,7 @@ export default function SiteHeader() {
             {searchOpen ? <X size={19} aria-hidden="true" /> : <Search size={19} aria-hidden="true" />}
           </button>
           <div className="header-actions">
+            <ReadAloudControl />
             <div
               className="menu-dropdown"
               onBlur={(event) => {
