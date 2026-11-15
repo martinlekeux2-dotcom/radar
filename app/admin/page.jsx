@@ -677,6 +677,24 @@ function ArticleEditor({ article, onClose, onSave, busy, error }) {
               <option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option>
             </select>
           </label>
+          {form.status === "published" && (
+            <label>
+              Date de publication
+              <input
+                name="published_at"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setForm((current) => ({
+                    ...current,
+                    published_at: value ? new Date(value).toISOString() : null,
+                  }));
+                }}
+                type="datetime-local"
+                value={localDateTime(form.published_at)}
+              />
+              <span className="admin-muted">Laissez vide pour publier à la date actuelle.</span>
+            </label>
+          )}
           <label>
             Rattacher à une rubrique existante
             <select name="menu_section" onChange={updateField} value={form.menu_section ?? ""}>
